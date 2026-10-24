@@ -6,6 +6,9 @@ import config from './config/env.js';
 import logger from './utils/logger.js';
 import healthRouter from './routes/health.js';
 import tendersRouter from './routes/tenders.js';
+import authRouter, { seedDemoAccounts } from './src/routes/auth.js';
+import databaseRouter from './src/routes/database.js';
+import { connectDB } from './src/db/connection.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -64,6 +67,8 @@ app.use((req, res, next) => {
 
 // Route Mounting
 app.use('/api/health', healthRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/database', databaseRouter);
 app.use('/api/tenders', tendersRouter);
 
 // 404 Handler for undefined routes
@@ -72,22 +77,47 @@ app.use(notFoundHandler);
 // Central Error Handler (never leaks secrets or stack traces)
 app.use(errorHandler);
 
-// Start Server
-const server = app.listen(config.port, () => {
-  logger.info(`=======================================================`);
-  logger.info(`Sarkari Sugam AI Backend running on port ${config.port}`);
-  logger.info(
-    `Active Mode: ${
-      config.demoMode ? 'DEMO_MODE (seeded / resilient playback)' : 'LIVE_MODE (TinyFish Web API)'
-    }`
-  );
-  logger.info(`TinyFish Status: ${config.tinyfish.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Safe Demo)'}`);
-  logger.info(
-    `Portal Auth Status: ${config.portal.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Simulated Auth)'}`
-  );
-  logger.info(`Alert Delivery: ${config.isSlackConfigured ? 'SLACK LIVE' : 'SIMULATED MODE'}`);
-  logger.info(`=======================================================`);
-});
+import Tender from './src/models/Tender.js';
+
+// Connect to MongoDB/PostgreSQL and start server
+async function startServer() {
+  await connectDB();
+  await seedDemoAccounts();
+
+  server = app.listen(config.port, () => {
+    logger.info(`=======================================================`);
+    logger.info(`Sarkari Sugam AI Backend running on port ${config.port}`);
+    logger.info(
+      `Active Mode: ${
+        config.demoMode ? 'DEMO_MODE (seeded / resilient playback)' : 'LIVE_MODE (TinyFish Web API)'
+      }`
+    );
+    logger.info(`Database: ${config.databaseType.toUpperCase()} (${config.databaseType === 'postgresql' ? 'Supabase' : 'MongoDB'})`);
+    logger.info(`TinyFish Status: ${config.tinyfish.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Safe Demo)'}`);
+    logger.info(
+      `Portal Auth Status: ${config.portal.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Simulated Auth)'}`
+    );
+    logger.info(`Alert Delivery: ${config.isSlackConfigured ? 'SLACK LIVE' : 'SIMULATED MODE'}`);
+    logger.info(`=======================================================`);
+
+    // Autonomous Background Watchdog Daemon (Periodic Heartbeat every 5 minutes)
+    const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
+    setInterval(async () => {
+      try {
+        const activeTenders = await Tender.find().limit(25);
+        const mutations = activeTenders.filter((t) => (t.status || '').includes('MUTATION')).length;
+        logger.info(
+          `[WATCHDOG:DAEMON] Background watchdog heartbeat: ${activeTenders.length} contracts monitored, ${mutations} corrigendums active.`
+        );
+      } catch (err) {
+        logger.warn(`[WATCHDOG:DAEMON] Heartbeat skipped: ${err.message}`);
+      }
+    }, WATCHDOG_INTERVAL_MS).unref();
+  });
+}
+
+let server;
+startServer();
 
 // Graceful Shutdown on SIGINT and SIGTERM
 function handleShutdown(signal) {

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import { useAuth } from './context/AuthContext';
+import AuthModal from './components/AuthModal';
 
 // SVG Icons for Sarkari Sugam design
 function SarkariSugamLogoIcon() {
@@ -61,9 +63,9 @@ function ActivityIcon() {
   );
 }
 
-
-
 export default function App() {
+  const { user, token, logout } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [healthData, setHealthData] = useState(null);
 
@@ -82,16 +84,19 @@ export default function App() {
   const [fetchError, setFetchError] = useState(null);
 
 
-  // Diff State
+  // Diff & Watchdog State
   const [diffTenderId, setDiffTenderId] = useState('TNDR-SWWYD8TQHQYENTNI');
   const [diffUrl, setDiffUrl] = useState(
     'https://eprocure.gov.in/eprocure/app?component=%24DirectLink&page=FrontEndViewTender&service=direct&session=T&sp=SWWYD8TQhQYENtniIfmtVcw%3D%3D'
   );
-  const [diffCurrentBudget, setDiffCurrentBudget] = useState('500000');
-  const [diffCurrentDeadline, setDiffCurrentDeadline] = useState('2026-11-20');
+  const [diffCurrentBudget, setDiffCurrentBudget] = useState('1450000');
+  const [diffCurrentDeadline, setDiffCurrentDeadline] = useState('2026-12-10');
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffResult, setDiffResult] = useState(null);
   const [diffError, setDiffError] = useState(null);
+  const [sweepLoading, setSweepLoading] = useState(false);
+  const [sweepResult, setSweepResult] = useState(null);
+  const [expandedHistoryId, setExpandedHistoryId] = useState(null);
 
   // Session Tenders
   const [savedTenders, setSavedTenders] = useState([
@@ -110,24 +115,38 @@ export default function App() {
 
   useEffect(() => {
     let ignore = false;
-    async function loadHealth() {
-      try {
-        const res = await fetch('/api/health');
-        const data = await res.json();
-        if (!ignore) {
-          setHealthData(data);
-        }
-      } catch {
-        if (!ignore) {
-          setHealthData({ ok: false });
-        }
-      }
+    async function init() {
+      await fetchHealth();
+      await fetchSavedTenders();
     }
-    loadHealth();
+    init();
     return () => {
       ignore = true;
     };
   }, []);
+
+  async function fetchHealth() {
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      setHealthData(data);
+      setLastRawResponse({ endpoint: 'GET /api/health', status: res.status, data });
+    } catch {
+      setHealthData({ ok: false });
+    }
+  }
+
+  async function fetchSavedTenders() {
+    try {
+      const res = await fetch('/api/tenders/saved');
+      const data = await res.json();
+      if (data.status === 'success' && Array.isArray(data.data) && data.data.length > 0) {
+        setSavedTenders(data.data);
+      }
+    } catch (err) {
+      console.warn('Could not fetch saved tenders:', err);
+    }
+  }
 
 
 
@@ -142,7 +161,10 @@ export default function App() {
     try {
       const res = await fetch('/api/tenders/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ query: searchQuery, limit: Number(searchLimit) }),
       });
       const data = await res.json();
@@ -169,7 +191,10 @@ export default function App() {
     try {
       const res = await fetch('/api/tenders/fetch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ url: fetchUrl }),
       });
       const data = await res.json();
@@ -191,6 +216,7 @@ export default function App() {
       setFetchLoading(false);
     }
   }
+
 
 
   // Action: Diff
@@ -216,17 +242,69 @@ export default function App() {
     try {
       const res = await fetch('/api/tenders/diff', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.message || 'Diff failed');
       setDiffResult(data);
+      if (data.mutation_detected) {
+        fetchSavedTenders();
+      }
     } catch (err) {
       setDiffError(err.message);
     } finally {
       setDiffLoading(false);
+    }
+  }
+
+  // Action: Fleet Watchdog Sweep
+  async function handleSweep() {
+    setSweepLoading(true);
+    setSweepResult(null);
+    try {
+      const res = await fetch('/api/tenders/monitor/sweep', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const data = await res.json();
+      setSweepResult(data);
+      await fetchSavedTenders();
+    } catch (err) {
+      console.error('Sweep failed:', err);
+    } finally {
+      setSweepLoading(false);
+    }
+  }
+
+  function handleSelectTenderForDiff(tender) {
+    if (!tender) return;
+    setDiffTenderId(tender.tender_id);
+    setDiffUrl(tender.source_url || '');
+    setDiffCurrentBudget(tender.budget_usd ? String(tender.budget_usd) : '1250000');
+    setDiffCurrentDeadline(tender.submission_deadline || '2026-11-24');
+    setDiffResult(null);
+    setDiffError(null);
+  }
+
+  function applyPreset(type) {
+    if (type === 'clean') {
+      setDiffCurrentBudget('1250000');
+      setDiffCurrentDeadline('24-Nov-2026');
+    } else if (type === 'budget') {
+      setDiffCurrentBudget('1450000');
+    } else if (type === 'deadline') {
+      setDiffCurrentDeadline('10-Dec-2026');
+    } else if (type === 'major') {
+      setDiffCurrentBudget('1750000');
+      setDiffCurrentDeadline('25-Dec-2026');
     }
   }
 
@@ -321,15 +399,40 @@ export default function App() {
 
         {/* Sidebar Bottom (Profile & Status) */}
         <div className="tf-sidebar-bottom">
-          <div className="tf-user-profile-row">
-            <div className="tf-user-profile-left">
-              <div className="tf-user-avatar">I</div>
-              <div>
-                <div className="tf-user-name">Ishant Mohan</div>
-                <div className="tf-user-email">ishantmohan045@gmail.com</div>
+          {user ? (
+            <div className="tf-user-profile-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div className="tf-user-profile-left">
+                <div className="tf-user-avatar">{user.name ? user.name[0].toUpperCase() : 'U'}</div>
+                <div style={{ overflow: 'hidden' }}>
+                  <div className="tf-user-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>{user.name}</span>
+                    <span className="tf-badge tf-badge-emerald" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                      {user.role === 'PROCUREMENT_OFFICER' ? 'OFFICER' : 'VENDOR'}
+                    </span>
+                  </div>
+                  <div className="tf-user-email">{user.email}</div>
+                </div>
               </div>
+              <button
+                type="button"
+                className="tf-btn tf-btn-ghost"
+                style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--tf-text-muted)' }}
+                onClick={logout}
+                title="Sign Out"
+              >
+                Logout
+              </button>
             </div>
-          </div>
+          ) : (
+            <button
+              type="button"
+              className="tf-btn tf-btn-orange"
+              style={{ width: '100%', fontSize: '12px', padding: '8px 10px', justifyContent: 'center' }}
+              onClick={() => setAuthModalOpen(true)}
+            >
+              Sign In / Select Role &rarr;
+            </button>
+          )}
         </div>
       </aside>
 
@@ -348,7 +451,18 @@ export default function App() {
             </h1>
           </div>
 
-
+          <div className="tf-top-actions">
+            <button
+              type="button"
+              className="tf-btn tf-btn-secondary"
+              style={{ padding: '5px 12px', fontSize: '12px' }}
+              onClick={() => setAuthModalOpen(true)}
+            >
+              {user ? 'Switch Role' : 'Sign In'}
+            </button>
+            <span className="tf-badge tf-badge-gray">eprocure.gov.in Live Gateway</span>
+            <span className="tf-badge tf-badge-emerald">System Online</span>
+          </div>
         </div>
 
         {/* Highlight Banner (Setup MCP or CLI from screenshot) */}
@@ -511,7 +625,7 @@ export default function App() {
                 <div className="tf-snapshot-row">
                   <div>
                     <div className="tf-snapshot-label">Monitored Tenders</div>
-                    <div className="tf-snapshot-sub">Active baselines in memory</div>
+                    <div className="tf-snapshot-sub">Active Tracked Notices</div>
                   </div>
                   <div className="tf-snapshot-val" style={{ color: 'var(--tf-orange)' }}>
                     {savedTenders.length}
@@ -757,12 +871,196 @@ export default function App() {
         {/* ----------------- VIEW 5: MONITOR & DIFF ----------------- */}
         {activeTab === 'diff' && (
           <div>
+            {/* Top Stat Strip & Fleet Controls */}
+            <div className="tf-stat-strip">
+              <div className="tf-stat-group">
+                <div className="tf-stat-col">
+                  <div className="tf-stat-col-label">Watchdog Engine</div>
+                  <div className="tf-stat-col-val" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: '#059669' }}>
+                    <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#059669' }} />
+                    24/7 Autonomous Daemon
+                  </div>
+                </div>
+
+                <div className="tf-stat-col">
+                  <div className="tf-stat-col-label">Monitored Contracts</div>
+                  <div className="tf-stat-col-val" style={{ color: 'var(--tf-orange)' }}>
+                    {savedTenders.length}
+                  </div>
+                </div>
+
+                <div className="tf-stat-col">
+                  <div className="tf-stat-col-label">Corrigendums Logged</div>
+                  <div className="tf-stat-col-val" style={{ color: savedTenders.some((t) => (t.status || '').includes('MUTATION')) ? '#d97706' : '#059669' }}>
+                    {savedTenders.filter((t) => (t.status || '').includes('MUTATION')).length}
+                  </div>
+                </div>
+
+                <div className="tf-stat-col">
+                  <div className="tf-stat-col-label">Alert Channels</div>
+                  <div className="tf-stat-col-val" style={{ fontSize: '13px', color: 'var(--tf-text-secondary)' }}>
+                    Slack (#procurement) &bull; Nodemailer Email
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  className="tf-btn tf-btn-secondary"
+                  disabled={sweepLoading}
+                  onClick={handleSweep}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+                >
+                  <span>{sweepLoading ? 'Sweeping All Portals...' : '⚡ Run Fleet Watchdog Sweep'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sweep Result Banner */}
+            {sweepResult && (
+              <div style={{ marginBottom: '20px', padding: '12px 16px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: '700', color: '#065f46', fontSize: '13px' }}>
+                    Fleet Sweep Completed Successfully
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
+                    Inspected {sweepResult.checked_count} tracked tender baselines &bull; {sweepResult.mutations_found} active corrigendums flagged
+                  </div>
+                </div>
+                <span className="tf-badge tf-badge-emerald">SWEEP OK</span>
+              </div>
+            )}
+
+            {/* Monitored Contracts Watchlist */}
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div className="tf-section-title" style={{ margin: 0 }}>
+                  Active Monitored Watchlist (Supabase PostgreSQL)
+                </div>
+                <button
+                  type="button"
+                  className="tf-link-btn"
+                  onClick={fetchSavedTenders}
+                  style={{ fontSize: '12px' }}
+                >
+                  &#x21bb; Refresh Baseline Data
+                </button>
+              </div>
+
+              <div className="tf-panel" style={{ padding: '0', overflow: 'hidden' }}>
+                <table className="tf-table">
+                  <thead>
+                    <tr>
+                      <th>Tender ID</th>
+                      <th>Issuing Department</th>
+                      <th>Work Description</th>
+                      <th>Tracked Budget</th>
+                      <th>Deadline</th>
+                      <th>Watchdog Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {savedTenders.map((item, idx) => {
+                      const isMutated = (item.status || '').includes('MUTATION');
+                      const historyCount = Array.isArray(item.history) ? item.history.length : 0;
+                      const isExpanded = expandedHistoryId === item.tender_id;
+
+                      return (
+                        <React.Fragment key={idx}>
+                          <tr>
+                            <td style={{ fontFamily: 'var(--font-mono)', fontWeight: '600', color: 'var(--tf-orange)' }}>
+                              {item.tender_id}
+                            </td>
+                            <td style={{ fontWeight: '500' }}>{item.issuing_agency || 'Ministry of Transport'}</td>
+                            <td style={{ maxWidth: '240px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {item.title}
+                            </td>
+                            <td style={{ fontWeight: '600', color: 'var(--tf-text-primary)' }}>
+                              {item.budget_usd ? `$${item.budget_usd.toLocaleString()}` : 'N/A'}
+                            </td>
+                            <td style={{ color: 'var(--tf-amber)', fontWeight: '500' }}>
+                              {item.submission_deadline || 'Open'}
+                            </td>
+                            <td>
+                              <span className={`tf-badge ${isMutated ? 'tf-badge-amber' : 'tf-badge-emerald'}`}>
+                                {isMutated ? `⚠️ Corrigendum (${historyCount})` : '🟢 Baseline Intact'}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  className="tf-btn tf-btn-secondary"
+                                  style={{ padding: '3px 8px', fontSize: '11px' }}
+                                  onClick={() => handleSelectTenderForDiff(item)}
+                                >
+                                  Select & Inspect
+                                </button>
+                                {historyCount > 0 && (
+                                  <button
+                                    type="button"
+                                    className="tf-btn tf-btn-secondary"
+                                    style={{ padding: '3px 8px', fontSize: '11px', background: isExpanded ? '#e2e8f0' : undefined }}
+                                    onClick={() => setExpandedHistoryId(isExpanded ? null : item.tender_id)}
+                                  >
+                                    {isExpanded ? 'Hide History' : `History (${historyCount})`}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* Expandable Historical Mutations Audit Timeline */}
+                          {isExpanded && historyCount > 0 && (
+                            <tr>
+                              <td colSpan={7} style={{ padding: 0 }}>
+                                <div className="tf-history-drawer">
+                                  <div style={{ fontWeight: '700', color: '#92400e', marginBottom: '6px' }}>
+                                    Corrigendum Audit Log ({item.tender_id})
+                                  </div>
+                                  <div className="tf-history-timeline">
+                                    {item.history.map((hist, hIdx) => (
+                                      <div key={hIdx} className="tf-history-item">
+                                        <div>
+                                          <div style={{ fontWeight: '600', color: '#1e293b' }}>
+                                            {hist.change_summary || 'Corrigendum detected'}
+                                          </div>
+                                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                            Timestamp: {hist.detected_at ? new Date(hist.detected_at).toLocaleString() : 'Recent'}
+                                          </div>
+                                        </div>
+                                        <div style={{ textAlign: 'right', fontSize: '12px' }}>
+                                          <div>
+                                            Budget: <span style={{ textDecoration: 'line-through', color: '#94a3b8' }}>${hist.previous_budget?.toLocaleString() || 'N/A'}</span> &rarr; <span style={{ fontWeight: '700', color: '#b45309' }}>${hist.updated_budget?.toLocaleString() || 'N/A'}</span>
+                                          </div>
+                                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                            Deadline: {hist.previous_deadline || 'N/A'} &rarr; {hist.updated_deadline || 'N/A'}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Corrigendum Diff Inspector Form */}
             <div className="tf-panel">
               <div className="tf-panel-header">
                 <div>
-                  <h2 className="tf-panel-title">Corrigendum & Mutation Watchdog</h2>
+                  <h2 className="tf-panel-title">Corrigendum & Mutation Watchdog Inspector</h2>
                   <div className="tf-panel-desc">
-                    Re-fetches target and detects unannounced amendments, budget shifts, or deadline changes
+                    Audit baseline contracts against live portal data or simulate amendments to verify real-time alert dispatch
                   </div>
                 </div>
               </div>
@@ -796,7 +1094,7 @@ export default function App() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--tf-text-secondary)', marginBottom: '4px' }}>
-                      Simulated Baseline Budget (USD)
+                      Audit Budget (USD)
                     </label>
                     <input
                       type="number"
@@ -807,18 +1105,54 @@ export default function App() {
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--tf-text-secondary)', marginBottom: '4px' }}>
-                      Simulated Baseline Deadline
+                      Audit Submission Deadline
                     </label>
                     <input
-                      type="date"
+                      type="text"
                       className="tf-input"
+                      placeholder="e.g. 10-Dec-2026 or 2026-11-20"
                       value={diffCurrentDeadline}
                       onChange={(e) => setDiffCurrentDeadline(e.target.value)}
                     />
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                {/* Quick Presets for instant testing */}
+                <div className="tf-chip-group">
+                  <span className="tf-chip-label">Quick Corrigendum Simulation Presets</span>
+                  <div className="tf-chip-list">
+                    <button
+                      type="button"
+                      className="tf-chip"
+                      onClick={() => applyPreset('clean')}
+                    >
+                      ⚡ Clean Baseline Match (No Change)
+                    </button>
+                    <button
+                      type="button"
+                      className="tf-chip"
+                      onClick={() => applyPreset('budget')}
+                    >
+                      ⚡ Corrigendum: Budget Hike (+$200k)
+                    </button>
+                    <button
+                      type="button"
+                      className="tf-chip"
+                      onClick={() => applyPreset('deadline')}
+                    >
+                      ⚡ Corrigendum: Deadline Extension (+16 Days)
+                    </button>
+                    <button
+                      type="button"
+                      className="tf-chip"
+                      onClick={() => applyPreset('major')}
+                    >
+                      ⚡ Major Corrigendum (Both Budget & Deadline)
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
                   <button type="submit" className="tf-btn tf-btn-orange" disabled={diffLoading}>
                     {diffLoading ? 'Checking for Corrigendum...' : 'Run Corrigendum Diff'}
                   </button>
@@ -835,7 +1169,7 @@ export default function App() {
             {/* Mutation Results Display (NO RAW JSON!) */}
             {diffResult && (
               <div>
-                <div className="tf-section-title">Corrigendum Analysis</div>
+                <div className="tf-section-title">Corrigendum Analysis Results</div>
 
                 <div
                   className={`tf-diff-banner ${diffResult.mutation_detected ? 'mutation' : 'clean'}`}
@@ -851,10 +1185,11 @@ export default function App() {
                     </div>
                   </div>
                   <span className={`tf-badge ${diffResult.mutation_detected ? 'tf-badge-amber' : 'tf-badge-emerald'}`}>
-                    {diffResult.mutation_detected ? 'AMENDMENT' : 'STABLE'}
+                    {diffResult.mutation_detected ? 'AMENDMENT DETECTED' : 'BASELINE INTACT'}
                   </span>
                 </div>
 
+                {/* Variance Delta Table */}
                 {diffResult.changes && diffResult.changes.length > 0 && (
                   <div className="tf-panel" style={{ padding: '0', overflow: 'hidden' }}>
                     <table className="tf-table">
@@ -874,13 +1209,66 @@ export default function App() {
                             <td style={{ fontWeight: '600', color: '#b45309' }}>{String(c.updated_value)}</td>
                             <td>
                               <span className="tf-badge tf-badge-amber">
-                                {c.delta !== null ? `$${c.delta.toLocaleString()}` : 'Modified'}
+                                {c.delta !== null ? (c.delta > 0 ? `+$${c.delta.toLocaleString()}` : `$${c.delta.toLocaleString()}`) : 'Modified'}
                               </span>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+
+                {/* Multi-Channel Alert Delivery Status */}
+                {diffResult.alert && (
+                  <div className="tf-alert-box">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '16px' }}>🚨</span>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--tf-text-primary)' }}>
+                          Multi-Channel Procurement Alert Dispatched
+                        </span>
+                      </div>
+                      <span className="tf-badge tf-badge-emerald">Dispatched</span>
+                    </div>
+
+                    <div className="tf-alert-grid">
+                      <div className="tf-alert-col">
+                        <div style={{ fontWeight: '600', color: '#0f172a', marginBottom: '4px' }}>📢 Slack Webhook</div>
+                        <div style={{ color: 'var(--tf-text-secondary)' }}>Channel: <code>{diffResult.alert.channel}</code></div>
+                        <div style={{ color: '#059669', fontWeight: '600', marginTop: '4px' }}>
+                          {diffResult.alert.mode === 'simulated' ? '• Payload Logged (Mock Delivery)' : '• Dispatched Live to Slack'}
+                        </div>
+                      </div>
+
+                      <div className="tf-alert-col">
+                        <div style={{ fontWeight: '600', color: '#0f172a', marginBottom: '4px' }}>📬 Nodemailer Official Email</div>
+                        <div style={{ color: 'var(--tf-text-secondary)', wordBreak: 'break-all' }}>
+                          Recipient: <code>{diffResult.alert.email?.recipient || user?.email || 'ishantmohan045@gmail.com'}</code>
+                        </div>
+                        {diffResult.alert.email?.isRealSmtp ? (
+                          <div style={{ color: '#059669', fontWeight: '600', marginTop: '4px' }}>• Delivered via SMTP Server</div>
+                        ) : (
+                          <div style={{ color: '#d97706', fontWeight: '600', marginTop: '4px' }}>• Sandbox Mode (Ethereal Inbox)</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Ethereal Email Preview Button */}
+                    {diffResult.alert.email?.previewUrl && (
+                      <div style={{ marginTop: '14px', textAlign: 'center' }}>
+                        <a
+                          href={diffResult.alert.email.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="tf-btn tf-btn-orange"
+                          style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '9px 18px' }}
+                        >
+                          <span>📬 View Dispatched Corrigendum Notice (Ethereal Preview)</span>
+                          <span style={{ fontSize: '14px' }}>&nearr;</span>
+                        </a>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -924,6 +1312,11 @@ export default function App() {
           </div>
         )}
 
+        {/* Auth Modal for Sign In / Register / Quick Demo */}
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+        />
 
       </main>
     </div>

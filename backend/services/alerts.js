@@ -1,28 +1,53 @@
 import axios from 'axios';
 import config from '../config/env.js';
 import logger from '../utils/logger.js';
+import { sendCorrigendumAlertEmail } from '../src/services/mailer.js';
 
 /**
  * Dispatches an alert regarding tender corrigendum/mutations
- * Uses Slack webhook if configured (with a 5s timeout) or simulates dispatch.
+ * Uses Slack webhook if configured and emails the subscribed officer/bidder.
  * Never throws an error or breaks the response.
  *
  * @param {object} params
  * @param {string} params.tenderId
+ * @param {string} params.title
  * @param {Array} params.changes
  * @param {string} params.addendumNotice
- * @returns {Promise<{ channel: string, dispatched: boolean, mode: 'slack'|'simulated', error: string|null }>}
+ * @param {string} params.recipientEmail
+ * @returns {Promise<object>}
  */
-export async function dispatchAlert({ tenderId, changes = [], addendumNotice = '' }) {
+export async function dispatchAlert({
+  tenderId,
+  title = '',
+  changes = [],
+  addendumNotice = '',
+  recipientEmail = null,
+}) {
   const channel = '#procurement-alerts';
+  let emailAlertRes = null;
 
-  // If Slack webhook is not configured or in demo mode without URL, simulate
+  // 1. Dispatch Email Alert
+  if (recipientEmail) {
+    try {
+      emailAlertRes = await sendCorrigendumAlertEmail(recipientEmail, {
+        tenderId,
+        title,
+        changes,
+        addendumNotice,
+      });
+    } catch (err) {
+      logger.warn(`[ALERT] Email dispatch error: ${err.message}`);
+    }
+  }
+
+  // 2. Dispatch Slack Webhook if configured
   if (!config.isSlackConfigured || !config.slackWebhookUrl) {
-    logger.info(`[ALERT SIMULATION] Tender ${tenderId} mutation detected. Alert simulated for channel ${channel}`);
+    logger.info(`[ALERT SIMULATION] Tender ${tenderId} mutation detected. Alert logged for channel ${channel}`);
     return {
       channel,
       dispatched: true,
       mode: 'simulated',
+      email: emailAlertRes,
       error: null,
     };
   }
@@ -77,14 +102,16 @@ export async function dispatchAlert({ tenderId, changes = [], addendumNotice = '
       channel,
       dispatched: true,
       mode: 'slack',
+      email: emailAlertRes,
       error: null,
     };
   } catch (err) {
     logger.warn(`[ALERT] Failed to deliver Slack webhook for tender ${tenderId}: ${err.message}`);
     return {
       channel,
-      dispatched: false,
+      dispatched: Boolean(emailAlertRes?.sent),
       mode: 'slack',
+      email: emailAlertRes,
       error: 'Slack delivery timed out or failed',
     };
   }
