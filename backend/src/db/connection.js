@@ -8,7 +8,13 @@ export async function connectDB() {
   if (isConnected) return;
 
   try {
-    const conn = await mongoose.connect(config.mongodbUri, {
+    let cleanUri = config.mongodbUri;
+    // MongoDB engine rejects spaces in database namespaces: sanitize '%20' or ' ' to '-'
+    if (cleanUri.includes('%20') || cleanUri.includes(' ')) {
+      cleanUri = cleanUri.replace(/%20/g, '-').replace(/ /g, '-');
+    }
+
+    const conn = await mongoose.connect(cleanUri, {
       serverSelectionTimeoutMS: 5000,
     });
     isConnected = true;

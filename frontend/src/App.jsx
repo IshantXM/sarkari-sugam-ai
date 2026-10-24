@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import { useAuth } from './context/AuthContext';
+import AuthModal from './components/AuthModal';
 
 // SVG Icons for Sarkari Sugam design
 function SarkariSugamLogoIcon() {
@@ -75,6 +77,8 @@ function ActivityIcon() {
 
 
 export default function App() {
+  const { user, token, logout } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [healthData, setHealthData] = useState(null);
   const [showJsonInspector, setShowJsonInspector] = useState(false);
@@ -132,6 +136,7 @@ export default function App() {
 
   useEffect(() => {
     fetchHealth();
+    fetchSavedTenders();
   }, []);
 
   async function fetchHealth() {
@@ -142,6 +147,18 @@ export default function App() {
       setLastRawResponse({ endpoint: 'GET /api/health', status: res.status, data });
     } catch {
       setHealthData({ ok: false });
+    }
+  }
+
+  async function fetchSavedTenders() {
+    try {
+      const res = await fetch('/api/tenders/saved');
+      const data = await res.json();
+      if (data.status === 'success' && Array.isArray(data.data) && data.data.length > 0) {
+        setSavedTenders(data.data);
+      }
+    } catch (err) {
+      console.warn('Could not fetch saved tenders from MongoDB:', err);
     }
   }
 
@@ -159,7 +176,10 @@ export default function App() {
     try {
       const res = await fetch('/api/tenders/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ query: searchQuery, limit: Number(searchLimit) }),
       });
       const data = await res.json();
@@ -193,7 +213,10 @@ export default function App() {
     try {
       const res = await fetch('/api/tenders/fetch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ url: fetchUrl }),
       });
       const data = await res.json();
@@ -235,7 +258,10 @@ export default function App() {
     try {
       const res = await fetch('/api/tenders/agent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ url: agentUrl, task: agentTask }),
       });
       const data = await res.json();
@@ -279,7 +305,10 @@ export default function App() {
     try {
       const res = await fetch('/api/tenders/diff', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
@@ -406,15 +435,40 @@ export default function App() {
 
         {/* Sidebar Bottom (Profile & Status) */}
         <div className="tf-sidebar-bottom">
-          <div className="tf-user-profile-row">
-            <div className="tf-user-profile-left">
-              <div className="tf-user-avatar">I</div>
-              <div>
-                <div className="tf-user-name">Ishant Mohan</div>
-                <div className="tf-user-email">ishantmohan045@gmail.com</div>
+          {user ? (
+            <div className="tf-user-profile-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div className="tf-user-profile-left">
+                <div className="tf-user-avatar">{user.name ? user.name[0].toUpperCase() : 'U'}</div>
+                <div style={{ overflow: 'hidden' }}>
+                  <div className="tf-user-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>{user.name}</span>
+                    <span className="tf-badge tf-badge-emerald" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                      {user.role === 'PROCUREMENT_OFFICER' ? 'OFFICER' : 'VENDOR'}
+                    </span>
+                  </div>
+                  <div className="tf-user-email">{user.email}</div>
+                </div>
               </div>
+              <button
+                type="button"
+                className="tf-btn tf-btn-ghost"
+                style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--tf-text-muted)' }}
+                onClick={logout}
+                title="Sign Out"
+              >
+                Logout
+              </button>
             </div>
-          </div>
+          ) : (
+            <button
+              type="button"
+              className="tf-btn tf-btn-orange"
+              style={{ width: '100%', fontSize: '12px', padding: '8px 10px', justifyContent: 'center' }}
+              onClick={() => setAuthModalOpen(true)}
+            >
+              Sign In / Select Role &rarr;
+            </button>
+          )}
         </div>
       </aside>
 
@@ -435,9 +489,17 @@ export default function App() {
           </div>
 
           <div className="tf-top-actions">
+            <button
+              type="button"
+              className="tf-btn tf-btn-secondary"
+              style={{ padding: '5px 12px', fontSize: '12px' }}
+              onClick={() => setAuthModalOpen(true)}
+            >
+              {user ? 'Switch Role' : 'Sign In'}
+            </button>
             <span className="tf-badge tf-badge-gray" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#059669', display: 'inline-block' }}></span>
-              eprocure.gov.in Live Gateway
+              MongoDB Synced
             </span>
             <span className="tf-badge tf-badge-emerald">System Online</span>
           </div>
@@ -625,11 +687,22 @@ export default function App() {
                 <div className="tf-snapshot-row">
                   <div>
                     <div className="tf-snapshot-label">Monitored Tenders</div>
-                    <div className="tf-snapshot-sub">Active baselines in memory</div>
+                    <div className="tf-snapshot-sub">MongoDB Database Records</div>
                   </div>
                   <div className="tf-snapshot-val" style={{ color: 'var(--tf-orange)' }}>
                     {savedTenders.length}
                   </div>
+                </div>
+
+                <div className="tf-snapshot-row">
+                  <div>
+                    <div className="tf-snapshot-label">MongoDB Database</div>
+                    <div className="tf-snapshot-sub">localhost:27017</div>
+                    <div style={{ fontSize: '11px', color: '#059669', fontWeight: '600', marginTop: '4px' }}>
+                      Sarkari-Sugam-AI
+                    </div>
+                  </div>
+                  <span className="tf-badge tf-badge-emerald">Connected</span>
                 </div>
               </div>
             </div>
@@ -1137,6 +1210,16 @@ export default function App() {
               </div>
 
               <div className="tf-field-box">
+                <div className="tf-field-key">MONGODB DATABASE</div>
+                <div className="tf-field-val" style={{ color: healthData?.mongodb?.connected ? '#059669' : '#dc2626' }}>
+                  {healthData?.mongodb?.connected ? 'Connected (Port 27017)' : 'Disconnected'}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--tf-text-muted)', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>
+                  mongodb://localhost:27017/Sarkari%20Sugam-AI
+                </div>
+              </div>
+
+              <div className="tf-field-box">
                 <div className="tf-field-key">PORTAL AGENT ENGINE</div>
                 <div className="tf-field-val" style={{ color: healthData?.tinyfish_configured ? '#059669' : '#dc2626' }}>
                   {healthData?.tinyfish_configured ? 'Authenticated & Active' : 'Offline'}
@@ -1159,6 +1242,9 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Auth Modal for Sign In / Register / Quick Demo */}
+        <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
         {/* Optional Collapsed Developer Drawer */}
         <div style={{ marginTop: '40px', borderTop: '1px solid var(--tf-border)', paddingTop: '16px' }}>

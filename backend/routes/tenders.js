@@ -7,6 +7,7 @@ import tinyfish from '../services/tinyfish.js';
 import extractor from '../services/extractor.js';
 import alerts from '../services/alerts.js';
 import snapshotStore from '../services/snapshotStore.js';
+import Tender from '../src/models/Tender.js';
 
 const router = Router();
 
@@ -38,6 +39,28 @@ const diffBodySchema = z.object({
       eligibility: z.string().optional(),
     })
     .optional(),
+});
+
+/**
+ * 1. GET /api/tenders/saved
+ * Retrieve all monitored tenders stored in MongoDB
+ */
+router.get('/saved', async (req, res) => {
+  try {
+    const tenders = await Tender.find().sort({ updatedAt: -1 }).limit(50);
+    return res.json({
+      status: 'success',
+      count: tenders.length,
+      data: tenders,
+    });
+  } catch (err) {
+    logger.warn(`[TENDERS:SAVED] Mongo fetch fallback: ${err.message}`);
+    return res.json({
+      status: 'success',
+      count: snapshotStore.list().length,
+      data: snapshotStore.list(),
+    });
+  }
 });
 
 /**
@@ -137,9 +160,30 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
       markdownPreview = markdown.slice(0, 500);
     }
 
-    // Save into snapshot store keyed by tender_id
+    // Save into snapshot store and MongoDB
     if (extractedData.tender_id) {
       snapshotStore.save(extractedData);
+      try {
+        await Tender.findOneAndUpdate(
+          { tender_id: extractedData.tender_id },
+          {
+            $set: {
+              title: extractedData.title,
+              issuing_agency: extractedData.issuing_agency,
+              budget_usd: extractedData.budget_usd,
+              submission_deadline: extractedData.submission_deadline,
+              eligibility: extractedData.eligibility,
+              source_url: extractedData.source_url,
+              extraction_confidence: extractedData.extraction_confidence,
+              status: 'MONITORED',
+            },
+          },
+          { upsert: true, new: true }
+        );
+        logger.info(`[MONGODB] Tender ${extractedData.tender_id} upserted successfully`);
+      } catch (dbErr) {
+        logger.warn(`[MONGODB] Failed to upsert tender ${extractedData.tender_id}: ${dbErr.message}`);
+      }
     }
 
     return res.json({
@@ -326,6 +370,32 @@ router.post('/diff', validateBody(diffBodySchema), async (req, res, next) => {
         ...latestData,
         tender_id,
       });
+
+      // Update MongoDB with mutation status and history log
+      try {
+        await Tender.findOneAndUpdate(
+          { tender_id },
+          {
+            $set: {
+              ...latestData,
+              status: 'MUTATION_DETECTED',
+            },
+            $push: {
+              history: {
+                change_summary: addendumNotice,
+                previous_budget: baseline.budget_usd,
+                updated_budget: latestData.budget_usd,
+                previous_deadline: baseline.submission_deadline,
+                updated_deadline: latestData.submission_deadline,
+              },
+            },
+          },
+          { upsert: true }
+        );
+        logger.info(`[MONGODB] Corrigendum mutation logged for ${tender_id}`);
+      } catch (dbErr) {
+        logger.warn(`[MONGODB] Failed to log mutation in Mongo: ${dbErr.message}`);
+      }
     }
 
     return res.json({

@@ -52,8 +52,28 @@ export async function seedDemoAccounts() {
         logger.info(`[AUTH SEED] Created demo account: ${acc.email} (${acc.role})`);
       }
     }
+
+    // Seed baseline tender if empty
+    const Tender = (await import('../models/Tender.js')).default;
+    const tenderCount = await Tender.countDocuments();
+    if (tenderCount === 0) {
+      await Tender.create({
+        tender_id: 'TNDR-SWWYD8TQHQYENTNI',
+        title: 'Improvement of SH 52 from Anparu Siddapura, Thirthahalli Kundapura, Udupi Dist.',
+        issuing_agency: 'EE NH Division Shivamogga - MoRTH',
+        budget_usd: 1250000,
+        submission_deadline: '24-Nov-2026',
+        eligibility: 'Works Category, Open Tender',
+        source_url:
+          'https://eprocure.gov.in/eprocure/app?component=%24DirectLink&page=FrontEndViewTender&service=direct&session=T&sp=SWWYD8TQhQYENtniIfmtVcw%3D%3D',
+        extraction_confidence: 0.85,
+        status: 'MONITORED',
+        saved_by: 'ishantmohan045@gmail.com',
+      });
+      logger.info('[TENDER SEED] Seeded initial baseline tender into MongoDB');
+    }
   } catch (err) {
-    logger.warn(`[AUTH SEED] Note: Could not auto-seed users: ${err.message}`);
+    logger.warn(`[AUTH SEED] Note: Could not auto-seed: ${err.message}`);
   }
 }
 
