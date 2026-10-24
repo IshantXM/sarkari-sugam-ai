@@ -304,11 +304,11 @@
 
 .tf-cards-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .tf-cards-grid {
     grid-template-columns: 1fr;
   }
