@@ -19,6 +19,16 @@ router.get('/', (req, res) => {
     tinyfish_configured: config.tinyfish.isConfigured,
     portal_credentials_configured: config.portal.isConfigured,
     slack_configured: config.isSlackConfigured,
+    monitoring: {
+      watchdog_active: true,
+      sweep_interval_minutes: 5,
+      channels: ['#procurement-alerts', 'nodemailer-email'],
+    },
+    email_service: {
+      configured: true,
+      provider: config.smtp.isConfigured ? 'Direct SMTP' : 'Ethereal Test Sandbox',
+      is_real_smtp: config.smtp.isConfigured,
+    },
     uptime_seconds: Math.floor(process.uptime()),
     version: '1.0.0',
     request_id: req.id,

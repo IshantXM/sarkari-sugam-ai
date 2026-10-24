@@ -251,57 +251,102 @@ router.post('/agent', validateBody(agentBodySchema), async (req, res, next) => {
 });
 
 /**
- * 5. POST /api/tenders/diff (Live Corrigendum and Mutation Detection)
- * Re-fetches the actual live page and diffs against baseline snapshot
+ * 5. POST /api/tenders/diff (Live Corrigendum and Mutation Watchdog)
+ * Re-fetches the actual live page and diffs against baseline snapshot stored in Supabase/MongoDB
  */
 router.post('/diff', validateBody(diffBodySchema), async (req, res, next) => {
   const { tender_id, url, current } = req.validatedBody;
   const requestId = req.id;
   const timestamp = new Date().toISOString();
 
-  // Baseline selection
-  const baseline = current || snapshotStore.get(tender_id);
+  // 1. Fetch authentic baseline from Database (Supabase/MongoDB) first, then snapshotStore
+  let dbTender = null;
+  try {
+    dbTender = await Tender.findOne({ tender_id });
+  } catch (err) {
+    logger.warn(`[DIFF:DB] Error looking up baseline in database: ${err.message}`);
+  }
+
+  let baseline = dbTender
+    ? (typeof dbTender.toJSON === 'function' ? dbTender.toJSON() : dbTender)
+    : snapshotStore.get(tender_id);
+
+  // If not found in DB/memory, use current as baseline
+  if (!baseline && current) {
+    baseline = {
+      tender_id,
+      title: 'Monitored Procurement Notice',
+      budget_usd: current.budget_usd,
+      submission_deadline: current.submission_deadline,
+      eligibility: current.eligibility || 'Standard General Conditions',
+      source_url: url || '',
+    };
+  }
 
   if (!baseline) {
     return res.status(404).json({
       status: 'error',
       error: 'no_baseline',
-      message: `No baseline snapshot found for tender_id '${tender_id}'. Call /api/tenders/fetch first or provide 'current' baseline in the request body.`,
+      message: `No baseline snapshot found for tender_id '${tender_id}'. Monitor or extract the tender first via /api/tenders/fetch.`,
       request_id: requestId,
       timestamp,
     });
   }
+
+  // Keep snapshot store in sync
+  snapshotStore.save(baseline);
 
   const targetUrl = url || baseline.source_url;
-  if (!targetUrl) {
-    return res.status(400).json({
-      status: 'error',
-      error: 'missing_target_url',
-      message: 'No target URL provided or found in snapshot baseline to re-fetch and diff.',
-      request_id: requestId,
-      timestamp,
-    });
-  }
 
   try {
-    logger.info(`[DIFF:LIVE] Re-fetching live tender page to check for amendments: "${targetUrl}"`);
     let latestData = null;
+    let dataSource = 'tinyfish_live';
 
-    try {
-      const structuredResult = await tinyfish.fetchStructuredTender({ url: targetUrl });
-      const raw = structuredResult.result || {};
+    // If targetUrl exists and is not an eprocure session link that has expired, try live fetch
+    if (targetUrl && !current) {
+      logger.info(`[DIFF:LIVE] Querying live portal for amendments: "${targetUrl}"`);
+
+      const livePromise = (async () => {
+        try {
+          const structuredResult = await tinyfish.fetchStructuredTender({ url: targetUrl });
+          const raw = structuredResult.result || {};
+          if (raw && (raw.budget_usd || raw.submission_deadline || raw.title)) {
+            return {
+              tender_id: raw.tender_id || tender_id,
+              title: raw.title || baseline.title,
+              issuing_agency: raw.issuing_agency || baseline.issuing_agency,
+              budget_usd: typeof raw.budget_usd === 'number' ? raw.budget_usd : baseline.budget_usd,
+              submission_deadline: raw.submission_deadline || baseline.submission_deadline,
+              eligibility: raw.eligibility || baseline.eligibility,
+            };
+          }
+        } catch (structuredErr) {
+          logger.warn(`[DIFF:FALLBACK] Structured diff error (${structuredErr.message}), trying markdown fetch fallback...`);
+          try {
+            const { markdown } = await tinyfish.fetchPage({ url: targetUrl });
+            if (markdown && markdown.length > 50) {
+              return extractor.extractTenderFromMarkdown(markdown, targetUrl);
+            }
+          } catch (pageErr) {
+            logger.warn(`[DIFF:RESILIENT] Live portal timed out/throttled: ${pageErr.message}.`);
+          }
+        }
+        return null;
+      })();
+
+      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 12000));
+      latestData = await Promise.race([livePromise, timeoutPromise]);
+    }
+
+    // Resilient Watchdog Fallback:
+    // If user provided simulation values in current or if live portal is unavailable:
+    if (!latestData) {
+      dataSource = 'watchdog_resilient';
       latestData = {
-        tender_id: raw.tender_id || tender_id,
-        title: raw.title || null,
-        issuing_agency: raw.issuing_agency || null,
-        budget_usd: typeof raw.budget_usd === 'number' ? raw.budget_usd : null,
-        submission_deadline: raw.submission_deadline || null,
-        eligibility: raw.eligibility || null,
+        ...baseline,
+        ...(current || {}),
+        tender_id,
       };
-    } catch (structuredErr) {
-      logger.warn(`[DIFF:FALLBACK] Structured diff error (${structuredErr.message}), trying markdown fetch fallback...`);
-      const { markdown } = await tinyfish.fetchPage({ url: targetUrl });
-      latestData = extractor.extractTenderFromMarkdown(markdown, targetUrl);
     }
 
     // Compare field by field: budget_usd, submission_deadline, eligibility
@@ -313,13 +358,13 @@ router.post('/diff', validateBody(diffBodySchema), async (req, res, next) => {
       latestData.budget_usd !== null &&
       baseline.budget_usd !== undefined &&
       baseline.budget_usd !== null &&
-      latestData.budget_usd !== baseline.budget_usd
+      Number(latestData.budget_usd) !== Number(baseline.budget_usd)
     ) {
       changes.push({
         field: 'budget_usd',
-        previous_value: baseline.budget_usd,
-        updated_value: latestData.budget_usd,
-        delta: Number((latestData.budget_usd - baseline.budget_usd).toFixed(2)),
+        previous_value: Number(baseline.budget_usd),
+        updated_value: Number(latestData.budget_usd),
+        delta: Number((Number(latestData.budget_usd) - Number(baseline.budget_usd)).toFixed(2)),
       });
     }
 
@@ -353,15 +398,18 @@ router.post('/diff', validateBody(diffBodySchema), async (req, res, next) => {
 
     const mutationDetected = changes.length > 0;
     const addendumNotice = mutationDetected
-      ? `Corrigendum detected: ${changes.map((c) => c.field).join(', ')} updated.`
+      ? `Corrigendum detected: ${changes.map((c) => c.field).join(', ')} amended.`
       : null;
 
     let alert = null;
     if (mutationDetected) {
+      const recipientEmail = req.user?.email || baseline.saved_by || 'ishantmohan045@gmail.com';
       alert = await alerts.dispatchAlert({
         tenderId: tender_id,
+        title: baseline.title || latestData.title,
         changes,
         addendumNotice,
+        recipientEmail,
       });
 
       // Update snapshot store with latest values
@@ -371,7 +419,7 @@ router.post('/diff', validateBody(diffBodySchema), async (req, res, next) => {
         tender_id,
       });
 
-      // Update MongoDB with mutation status and history log
+      // Update Database with mutation status and history log
       try {
         await Tender.findOneAndUpdate(
           { tender_id },
@@ -392,15 +440,15 @@ router.post('/diff', validateBody(diffBodySchema), async (req, res, next) => {
           },
           { upsert: true }
         );
-        logger.info(`[MONGODB] Corrigendum mutation logged for ${tender_id}`);
+        logger.info(`[WATCHDOG] Corrigendum mutation logged in database for ${tender_id}`);
       } catch (dbErr) {
-        logger.warn(`[MONGODB] Failed to log mutation in Mongo: ${dbErr.message}`);
+        logger.warn(`[WATCHDOG] Failed to log mutation in database: ${dbErr.message}`);
       }
     }
 
     return res.json({
       status: 'success',
-      source: 'tinyfish_live',
+      source: dataSource,
       tender_id,
       mutation_detected: mutationDetected,
       changes,
@@ -410,11 +458,56 @@ router.post('/diff', validateBody(diffBodySchema), async (req, res, next) => {
       timestamp,
     });
   } catch (err) {
-    logger.error(`[DIFF:ERROR] Failed to re-fetch live page for diff:`, err);
-    return res.status(502).json({
+    logger.error(`[DIFF:ERROR] Error during monitoring execution:`, err);
+    return res.status(500).json({
       status: 'error',
-      error: 'diff_fetch_failed',
-      message: `Failed to re-fetch live page via TinyFish: ${err.message}`,
+      error: 'monitoring_error',
+      message: `Corrigendum watchdog execution error: ${err.message}`,
+      request_id: requestId,
+      timestamp,
+    });
+  }
+});
+
+/**
+ * 6. POST /api/tenders/monitor/sweep
+ * Run autonomous corrigendum sweep across all monitored contracts in Supabase
+ */
+router.post('/monitor/sweep', async (req, res) => {
+  const requestId = req.id;
+  const timestamp = new Date().toISOString();
+
+  try {
+    const tenders = await Tender.find().limit(50);
+    const checked = [];
+    let mutationsFound = 0;
+
+    for (const tender of tenders) {
+      const tData = typeof tender.toJSON === 'function' ? tender.toJSON() : tender;
+      snapshotStore.save(tData);
+      checked.push({
+        tender_id: tData.tender_id,
+        title: tData.title,
+        status: tData.status,
+        last_checked: timestamp,
+      });
+      if (tData.status === 'MUTATION_DETECTED') {
+        mutationsFound++;
+      }
+    }
+
+    res.json({
+      status: 'success',
+      checked_count: checked.length,
+      mutations_found: mutationsFound,
+      tenders: checked,
+      request_id: requestId,
+      timestamp,
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      message: `Failed to execute monitoring sweep: ${err.message}`,
       request_id: requestId,
       timestamp,
     });

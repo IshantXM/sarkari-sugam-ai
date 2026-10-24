@@ -28,10 +28,11 @@ async function executeWithRetry(operationFn) {
   } catch (err) {
     const status = err.response?.status;
     const is5xx = status && status >= 500 && status < 600;
-    const isNetworkError = !status || err.code === 'ECONNABORTED' || err.code === 'ERR_NETWORK';
+    const isTimeout = err.code === 'ECONNABORTED' || (err.message && err.message.includes('timeout'));
+    const isNetworkError = !isTimeout && (!status || err.code === 'ERR_NETWORK');
 
     if (is5xx || isNetworkError) {
-      logger.warn(`[TINYFISH] Transient failure (${err.message}). Retrying once after 500ms...`);
+      logger.warn(`[TINYFISH] Transient network failure (${err.message}). Retrying once after 500ms...`);
       await new Promise((resolve) => setTimeout(resolve, 500));
       return await operationFn();
     }
@@ -321,7 +322,7 @@ export async function fetchStructuredTender({ url }) {
         output_schema: TENDER_OUTPUT_SCHEMA,
         proxy_config: proxyConfig,
         agent_config: {
-          max_duration_seconds: 90,
+          max_duration_seconds: 25,
         },
       },
       {
@@ -329,7 +330,7 @@ export async function fetchStructuredTender({ url }) {
           'X-API-Key': config.tinyfish.apiKey,
           'Content-Type': 'application/json',
         },
-        timeout: 110000,
+        timeout: 25000,
       }
     );
 
@@ -339,7 +340,7 @@ export async function fetchStructuredTender({ url }) {
     if (runData?.run_id && runData.status && runData.status !== 'COMPLETED' && runData.status !== 'FAILED') {
       const runId = runData.run_id;
       const pollStart = Date.now();
-      const maxPollTimeMs = 90000;
+      const maxPollTimeMs = 25000;
 
       while (Date.now() - pollStart < maxPollTimeMs) {
         await new Promise((r) => setTimeout(r, 2000));

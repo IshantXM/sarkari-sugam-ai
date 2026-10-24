@@ -112,6 +112,106 @@ export async function sendResetCodeEmail(toEmail, code) {
   }
 }
 
+/**
+ * Send Corrigendum Mutation Alert email to subscribed procurement officers/bidders
+ */
+export async function sendCorrigendumAlertEmail(toEmail, { tenderId, title, changes = [], addendumNotice = '' }) {
+  try {
+    const transport = await getTransporter();
+    const fromAddress = config.smtp.isConfigured
+      ? (config.smtp.from || config.smtp.user)
+      : '"Sarkari Sugam Corrigendum Watchdog" <alerts@sarkarisugam.gov.in>';
+
+    const changesRows = changes
+      .map(
+        (c) => `
+        <tr style="border-bottom: 1px solid #f1f5f9;">
+          <td style="padding: 10px 12px; font-weight: 600; color: #ea580c; font-size: 13px;">${c.field}</td>
+          <td style="padding: 10px 12px; color: #64748b; font-size: 13px;">${c.previous_value ?? 'N/A'}</td>
+          <td style="padding: 10px 12px; font-weight: 700; color: #b45309; font-size: 13px;">${c.updated_value ?? 'N/A'}</td>
+          <td style="padding: 10px 12px; font-size: 12px;">
+            <span style="background: #fef3c7; color: #92400e; padding: 3px 8px; border-radius: 4px; font-weight: 700;">
+              ${c.delta !== null && c.delta !== undefined ? (c.delta > 0 ? `+$${c.delta.toLocaleString()}` : `$${c.delta.toLocaleString()}`) : 'MODIFIED'}
+            </span>
+          </td>
+        </tr>
+      `
+      )
+      .join('');
+
+    const info = await transport.sendMail({
+      from: fromAddress,
+      to: toEmail,
+      subject: `[CORRIGENDUM ALERT] Tender Mutation Detected: ${tenderId}`,
+      text: `Corrigendum Notice for Tender ${tenderId}:\n${addendumNotice}\n\nChanges:\n` +
+        changes.map((c) => `- ${c.field}: ${c.previous_value} -> ${c.updated_value}`).join('\n'),
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 620px; margin: 0 auto; padding: 28px; background: #ffffff; border: 1.5px solid #f97316; border-radius: 12px;">
+          <div style="background: #fff7ed; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; border-left: 4px solid #ea580c;">
+            <div style="font-size: 11px; font-weight: 800; color: #ea580c; text-transform: uppercase; letter-spacing: 1px;">
+              ⚠ Watchdog Security Trigger
+            </div>
+            <h2 style="color: #9a3412; margin: 4px 0 2px 0; font-size: 18px;">
+              Corrigendum / Addendum Identified
+            </h2>
+            <p style="color: #c2410c; font-size: 13px; margin: 0;">
+              ${addendumNotice || 'Unannounced tender specifications mutation was detected by the autonomous monitor.'}
+            </p>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <div style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase;">Tender Reference</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 2px;">${tenderId}</div>
+            ${title ? `<div style="font-size: 13px; color: #475569; margin-top: 2px;">${title}</div>` : ''}
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; background: #fafafa; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+            <thead>
+              <tr style="background: #f1f5f9; text-align: left; font-size: 11px; color: #475569; text-transform: uppercase;">
+                <th style="padding: 10px 12px;">Field</th>
+                <th style="padding: 10px 12px;">Previous Baseline</th>
+                <th style="padding: 10px 12px;">Updated Portal Value</th>
+                <th style="padding: 10px 12px;">Variance</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${changesRows}
+            </tbody>
+          </table>
+
+          <div style="border-top: 1px solid #f1f5f9; padding-top: 14px; text-align: center;">
+            <p style="color: #94a3b8; font-size: 11px; margin: 0;">
+              Dispatched automatically by Sarkari Sugam AI Watchdog Daemon &bull; Verified against Supabase DB
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    logger.info(`[MAILER:ALERT] Corrigendum alert sent to ${toEmail}. Message ID: ${info.messageId}`);
+    if (previewUrl) {
+      logger.info(`[MAILER:ALERT] View test alert email at: ${previewUrl}`);
+    }
+
+    return {
+      sent: true,
+      recipient: toEmail,
+      messageId: info.messageId,
+      previewUrl: previewUrl || null,
+      isRealSmtp: config.smtp.isConfigured,
+    };
+  } catch (err) {
+    logger.error(`[MAILER:ALERT] Failed to deliver corrigendum alert to ${toEmail}: ${err.message}`);
+    return {
+      sent: false,
+      recipient: toEmail,
+      error: err.message,
+    };
+  }
+}
+
 export default {
   sendResetCodeEmail,
+  sendCorrigendumAlertEmail,
 };

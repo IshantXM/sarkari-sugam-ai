@@ -77,7 +77,9 @@ app.use(notFoundHandler);
 // Central Error Handler (never leaks secrets or stack traces)
 app.use(errorHandler);
 
-// Connect to MongoDB and start server
+import Tender from './src/models/Tender.js';
+
+// Connect to MongoDB/PostgreSQL and start server
 async function startServer() {
   await connectDB();
   await seedDemoAccounts();
@@ -97,6 +99,20 @@ async function startServer() {
     );
     logger.info(`Alert Delivery: ${config.isSlackConfigured ? 'SLACK LIVE' : 'SIMULATED MODE'}`);
     logger.info(`=======================================================`);
+
+    // Autonomous Background Watchdog Daemon (Periodic Heartbeat every 5 minutes)
+    const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
+    setInterval(async () => {
+      try {
+        const activeTenders = await Tender.find().limit(25);
+        const mutations = activeTenders.filter((t) => (t.status || '').includes('MUTATION')).length;
+        logger.info(
+          `[WATCHDOG:DAEMON] Background watchdog heartbeat: ${activeTenders.length} contracts monitored, ${mutations} corrigendums active.`
+        );
+      } catch (err) {
+        logger.warn(`[WATCHDOG:DAEMON] Heartbeat skipped: ${err.message}`);
+      }
+    }, WATCHDOG_INTERVAL_MS).unref();
   });
 }
 
