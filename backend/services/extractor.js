@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const extractedTenderSchema = z.object({
   tender_id: z.string().nullable(),
+  title: z.string().nullable().optional(),
   issuing_agency: z.string().nullable(),
   budget_usd: z.number().nullable(),
   submission_deadline: z.string().nullable(),

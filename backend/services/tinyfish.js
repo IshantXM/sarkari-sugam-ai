@@ -232,8 +232,157 @@ export async function runAgent({ url, goal }) {
   });
 }
 
+/**
+ * Structured output schema for tender and procurement notices
+ * Adheres strictly to TinyFish schema rules (https://docs.tinyfish.ai/key-concepts/structured-output):
+ * - Top-level must be type: "object"
+ * - Allowed keywords only: type, properties, required, nullable
+ * - No unsupported keywords (no additionalProperties, no oneOf, no const, no examples)
+ */
+export const TENDER_OUTPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    tender_id: { type: 'string', nullable: true },
+    title: { type: 'string', nullable: true },
+    issuing_agency: { type: 'string', nullable: true },
+    budget_usd: { type: 'number', nullable: true },
+    submission_deadline: { type: 'string', nullable: true },
+    eligibility: { type: 'string', nullable: true },
+  },
+  required: ['tender_id', 'title'],
+};
+
+/**
+ * Determines appropriate proxy configuration based on URL target
+ * Routes Indian government portals (.gov.in, .nic.in, etc.) via India proxy to prevent geo-blocking
+ */
+export function getProxyConfigForUrl(urlStr) {
+  const domain = extractDomain(urlStr).toLowerCase();
+  const isIndianPortal =
+    domain.endsWith('.in') ||
+    domain.includes('eprocure') ||
+    domain.includes('gem.gov') ||
+    domain.includes('nic.in') ||
+    domain.includes('gov.in');
+
+  return {
+    enabled: true,
+    type: 'tinyfish',
+    country_code: isIndianPortal ? 'IN' : 'US',
+  };
+}
+
+/**
+ * Generates a clean deterministic fallback tender ID if the page does not declare an explicit one
+ */
+export function generateFallbackTenderId(urlStr, title = null) {
+  try {
+    const urlObj = new URL(urlStr);
+    for (const param of ['sp', 'id', 'tender_id', 'ref', 'notice_id']) {
+      const val = urlObj.searchParams.get(param);
+      if (val) {
+        const clean = val.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 16);
+        if (clean.length >= 4) return `TNDR-${clean.toUpperCase()}`;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const domain = extractDomain(urlStr).replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase() || 'PORTAL';
+  let hash = 0;
+  for (let i = 0; i < urlStr.length; i++) {
+    hash = (hash * 31 + urlStr.charCodeAt(i)) | 0;
+  }
+  const hex = Math.abs(hash).toString(16).toUpperCase().padStart(6, '0').slice(0, 6);
+  return `TNDR-${domain}-${hex}`;
+}
+
+/**
+ * Fetches and extracts structured tender details using TinyFish Structured Output
+ * @param {object} params
+ * @param {string} params.url
+ * @returns {Promise<{ result: object, runData: object, latencyMs: number }>}
+ */
+export async function fetchStructuredTender({ url }) {
+  const startTime = performance.now();
+  const proxyConfig = getProxyConfigForUrl(url);
+
+  const goal = 'Extract the tender details from this page including tender ID, title, issuing organization, budget, and deadline.';
+
+  return executeWithRetry(async () => {
+    logger.info(`[TINYFISH:STRUCTURED] Requesting structured output for "${url}" (proxy=${proxyConfig.country_code})`);
+
+    const runResponse = await axios.post(
+      `${TINYFISH_AGENT_BASE}/automation/run`,
+      {
+        url,
+        goal,
+        output_schema: TENDER_OUTPUT_SCHEMA,
+        proxy_config: proxyConfig,
+        agent_config: {
+          max_duration_seconds: 90,
+        },
+      },
+      {
+        headers: {
+          'X-API-Key': config.tinyfish.apiKey,
+          'Content-Type': 'application/json',
+        },
+        timeout: 110000,
+      }
+    );
+
+    let runData = runResponse.data;
+
+    // Check if the agent run returned a run_id and requires polling
+    if (runData?.run_id && runData.status && runData.status !== 'COMPLETED' && runData.status !== 'FAILED') {
+      const runId = runData.run_id;
+      const pollStart = Date.now();
+      const maxPollTimeMs = 90000;
+
+      while (Date.now() - pollStart < maxPollTimeMs) {
+        await new Promise((r) => setTimeout(r, 2000));
+
+        const pollResponse = await axios.get(`${TINYFISH_AGENT_BASE}/runs/${runId}`, {
+          headers: {
+            'X-API-Key': config.tinyfish.apiKey,
+          },
+          timeout: 10000,
+        });
+
+        const pollStatus = pollResponse.data?.status;
+        if (pollStatus === 'COMPLETED') {
+          runData = pollResponse.data;
+          break;
+        } else if (pollStatus === 'FAILED' || pollStatus === 'CANCELLED') {
+          throw new Error(`TinyFish agent run failed with status: ${pollStatus}`);
+        }
+      }
+
+      if (runData?.status !== 'COMPLETED') {
+        throw new Error('TinyFish structured extraction timed out while polling');
+      }
+    }
+
+    const latencyMs = Math.round(performance.now() - startTime);
+    const result = runData?.result || {};
+
+    return {
+      result,
+      runData,
+      latencyMs,
+    };
+  });
+}
+
 export default {
   search,
   fetchPage,
   runAgent,
+  fetchStructuredTender,
+  generateFallbackTenderId,
+  getProxyConfigForUrl,
+  TENDER_OUTPUT_SCHEMA,
 };
+

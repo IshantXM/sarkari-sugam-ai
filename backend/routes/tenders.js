@@ -76,7 +76,8 @@ router.post('/search', validateBody(searchBodySchema), async (req, res, next) =>
 
 /**
  * 3. POST /api/tenders/fetch (Live Context Shrink & Extraction)
- * Uses real live TinyFish Fetch API
+ * Uses TinyFish Structured Output (https://docs.tinyfish.ai/key-concepts/structured-output)
+ * with graceful fallback to Fetch markdown + heuristic extraction
  */
 router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
   const { url } = req.validatedBody;
@@ -84,15 +85,57 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
   const timestamp = new Date().toISOString();
 
   try {
-    logger.info(`[FETCH:LIVE] Fetching clean markdown via TinyFish for url="${url}"`);
-    const { markdown } = await tinyfish.fetchPage({ url });
+    logger.info(`[FETCH:LIVE] Fetching structured tender details via TinyFish Structured Output for url="${url}"`);
 
-    if (!markdown || markdown.trim().length === 0) {
-      throw new Error('TinyFish Fetch returned empty markdown content for this URL');
+    let extractedData = null;
+    let markdownPreview = '';
+
+    try {
+      const structuredResult = await tinyfish.fetchStructuredTender({ url });
+      const raw = structuredResult.result || {};
+
+      const tenderId = raw.tender_id || tinyfish.generateFallbackTenderId(url, raw.title);
+
+      const coreFields = [
+        tenderId,
+        raw.title,
+        raw.issuing_agency,
+        raw.budget_usd,
+        raw.submission_deadline,
+        raw.eligibility,
+      ];
+      const populated = coreFields.filter((f) => f !== null && f !== undefined).length;
+      const confidence = Number((populated / coreFields.length).toFixed(2));
+
+      extractedData = {
+        tender_id: tenderId,
+        title: raw.title || null,
+        issuing_agency: raw.issuing_agency || null,
+        budget_usd: typeof raw.budget_usd === 'number' ? raw.budget_usd : null,
+        submission_deadline: raw.submission_deadline || null,
+        eligibility: raw.eligibility || null,
+        source_url: url,
+        extraction_confidence: confidence,
+      };
+
+      markdownPreview = [
+        `# ${extractedData.title || 'Government Procurement Notice'}`,
+        `- Tender ID: ${extractedData.tender_id}`,
+        `- Issuing Agency: ${extractedData.issuing_agency || 'Not Specified'}`,
+        `- Budget (USD): ${extractedData.budget_usd ? `$${extractedData.budget_usd.toLocaleString()}` : 'Not Specified'}`,
+        `- Submission Deadline: ${extractedData.submission_deadline || 'Not Specified'}`,
+        `- Eligibility: ${extractedData.eligibility || 'Not Specified'}`,
+        `- Source URL: ${url}`,
+      ].join('\n');
+    } catch (structuredErr) {
+      logger.warn(`[FETCH:FALLBACK] Structured output agent error (${structuredErr.message}), trying markdown fetch fallback...`);
+      const { markdown } = await tinyfish.fetchPage({ url });
+      if (!markdown || markdown.trim().length === 0) {
+        throw structuredErr;
+      }
+      extractedData = extractor.extractTenderFromMarkdown(markdown, url);
+      markdownPreview = markdown.slice(0, 500);
     }
-
-    // Extract structured procurement fields via regex and heuristics
-    const extractedData = extractor.extractTenderFromMarkdown(markdown, url);
 
     // Save into snapshot store keyed by tender_id
     if (extractedData.tender_id) {
@@ -103,7 +146,7 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
       status: 'success',
       source: 'tinyfish_live',
       data: extractedData,
-      markdown_preview: markdown.slice(0, 500),
+      markdown_preview: markdownPreview,
       request_id: requestId,
       timestamp,
     });
@@ -112,7 +155,7 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
     return res.status(502).json({
       status: 'error',
       error: 'fetch_failed',
-      message: `TinyFish Fetch failed to retrieve the page: ${err.message}`,
+      message: `TinyFish failed to extract structured tender: ${err.message}`,
       request_id: requestId,
       timestamp,
     });
@@ -198,8 +241,24 @@ router.post('/diff', validateBody(diffBodySchema), async (req, res, next) => {
 
   try {
     logger.info(`[DIFF:LIVE] Re-fetching live tender page to check for amendments: "${targetUrl}"`);
-    const { markdown } = await tinyfish.fetchPage({ url: targetUrl });
-    const latestData = extractor.extractTenderFromMarkdown(markdown, targetUrl);
+    let latestData = null;
+
+    try {
+      const structuredResult = await tinyfish.fetchStructuredTender({ url: targetUrl });
+      const raw = structuredResult.result || {};
+      latestData = {
+        tender_id: raw.tender_id || tender_id,
+        title: raw.title || null,
+        issuing_agency: raw.issuing_agency || null,
+        budget_usd: typeof raw.budget_usd === 'number' ? raw.budget_usd : null,
+        submission_deadline: raw.submission_deadline || null,
+        eligibility: raw.eligibility || null,
+      };
+    } catch (structuredErr) {
+      logger.warn(`[DIFF:FALLBACK] Structured diff error (${structuredErr.message}), trying markdown fetch fallback...`);
+      const { markdown } = await tinyfish.fetchPage({ url: targetUrl });
+      latestData = extractor.extractTenderFromMarkdown(markdown, targetUrl);
+    }
 
     // Compare field by field: budget_usd, submission_deadline, eligibility
     const changes = [];
