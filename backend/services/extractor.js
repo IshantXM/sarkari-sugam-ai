@@ -135,7 +135,96 @@ export function extractTenderFromMarkdown(markdown = '', sourceUrl = null) {
   return extractedTenderSchema.parse(candidate);
 }
 
+/**
+ * Detects and extracts scanned image / circular links (JPG, PNG, WebP) from Markdown or HTML content
+ * @param {string} content - Markdown or HTML string from TinyFish scrape
+ * @param {string} baseUrl - Base URL to resolve relative image paths
+ * @returns {string[]} Array of candidate circular image URLs sorted by relevance
+ */
+export function extractCircularImages(content = '', baseUrl = '') {
+  if (!content || typeof content !== 'string') return [];
+
+  const foundUrls = new Set();
+  const scored = [];
+
+  // 1. Markdown image syntax: ![alt](url)
+  const mdImgRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s\)]+|\/[^\s\)]+)\)/gi;
+  let match;
+  while ((match = mdImgRegex.exec(content)) !== null) {
+    const alt = match[1] || '';
+    const rawUrl = match[2];
+    const resolved = resolveUrl(rawUrl, baseUrl);
+    if (resolved && !foundUrls.has(resolved)) {
+      foundUrls.add(resolved);
+      scored.push({ url: resolved, score: scoreImageUrl(resolved, alt) });
+    }
+  }
+
+  // 2. Markdown links pointing to image files: [title](url.jpg)
+  const mdLinkRegex = /\[([^\]]*)\]\((https?:\/\/[^\s\)]+\.(?:jpe?g|png|webp|tif|tiff)|\/[^\s\)]+\.(?:jpe?g|png|webp|tif|tiff))\)/gi;
+  while ((match = mdLinkRegex.exec(content)) !== null) {
+    const text = match[1] || '';
+    const rawUrl = match[2];
+    const resolved = resolveUrl(rawUrl, baseUrl);
+    if (resolved && !foundUrls.has(resolved)) {
+      foundUrls.add(resolved);
+      scored.push({ url: resolved, score: scoreImageUrl(resolved, text) + 2 });
+    }
+  }
+
+  // 3. HTML img tags: <img src="..." alt="...">
+  const htmlImgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  while ((match = htmlImgRegex.exec(content)) !== null) {
+    const rawTag = match[0];
+    const rawUrl = match[1];
+    const altMatch = rawTag.match(/alt=["']([^"']*)["']/i);
+    const alt = altMatch ? altMatch[1] : '';
+    const resolved = resolveUrl(rawUrl, baseUrl);
+    if (resolved && !foundUrls.has(resolved)) {
+      foundUrls.add(resolved);
+      scored.push({ url: resolved, score: scoreImageUrl(resolved, alt) });
+    }
+  }
+
+  // Sort descending by score, filter out negative scores (e.g. logos)
+  return scored
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.url);
+}
+
+function resolveUrl(url, baseUrl) {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (!baseUrl) return null;
+  try {
+    return new URL(url, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+function scoreImageUrl(url = '', text = '') {
+  let score = 1;
+  const combined = `${url} ${text}`.toLowerCase();
+
+  // Government scheme / circular keywords
+  if (/circular|notice|scheme|yojana|tender|nit|corrigendum|amendment|annexure|advertisement|advt|scan/.test(combined)) {
+    score += 5;
+  }
+  // Image extensions
+  if (/\.(?:jpe?g|png|webp)/i.test(url)) {
+    score += 2;
+  }
+  // Demote logos, icons, avatars, nav buttons
+  if (/logo|icon|avatar|favicon|banner_bg|social|button|arrow/.test(combined)) {
+    score -= 10;
+  }
+  return score;
+}
+
 export default {
   extractTenderFromMarkdown,
   extractedTenderSchema,
+  extractCircularImages,
 };

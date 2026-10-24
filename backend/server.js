@@ -42,8 +42,8 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Security: JSON body size limit (100kb max)
-app.use(express.json({ limit: '100kb' }));
+// Security: JSON body size limit (10mb to accommodate scanned image base64 payloads)
+app.use(express.json({ limit: '10mb' }));
 
 // Request ID and Request Logging Middleware
 app.use((req, res, next) => {

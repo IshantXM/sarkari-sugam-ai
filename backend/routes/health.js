@@ -17,6 +17,11 @@ router.get('/', (req, res) => {
     mongodb: dbStatus, // backward compatibility
     demo_mode: config.demoMode,
     tinyfish_configured: config.tinyfish.isConfigured,
+    gemini_vision: {
+      configured: config.gemini.isConfigured,
+      model: 'gemini-3.5-flash',
+      status: config.gemini.isConfigured ? 'Active (Ready)' : 'Unconfigured',
+    },
     portal_credentials_configured: config.portal.isConfigured,
     slack_configured: config.isSlackConfigured,
     monitoring: {

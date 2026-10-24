@@ -8,6 +8,7 @@ import extractor from '../services/extractor.js';
 import alerts from '../services/alerts.js';
 import snapshotStore from '../services/snapshotStore.js';
 import Tender from '../src/models/Tender.js';
+import { parseSchemeImage } from '../services/schemeVision.js';
 
 const router = Router();
 
@@ -39,6 +40,15 @@ const diffBodySchema = z.object({
       eligibility: z.string().optional(),
     })
     .optional(),
+});
+
+const parseImageBodySchema = z.object({
+  base64Data: z.string().optional(),
+  imageUrl: httpUrlSchema.optional(),
+  mimeType: z.string().optional().default('image/jpeg'),
+  save_to_database: z.boolean().optional().default(false),
+}).refine((data) => data.base64Data || data.imageUrl, {
+  message: 'Either base64Data or a valid imageUrl must be provided.',
 });
 
 /**
@@ -160,6 +170,38 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
       markdownPreview = markdown.slice(0, 500);
     }
 
+    // Multimodal Scraper Intelligence: Check if the scraped page contains scanned circulars/notices
+    let visionEnhanced = false;
+    let scannedImageUrl = null;
+    try {
+      const candidateImages = extractor.extractCircularImages(markdownPreview, url);
+      if (candidateImages.length > 0 && config.gemini.isConfigured) {
+        scannedImageUrl = candidateImages[0];
+        logger.info(`[TINYFISH:VISION] Detected scanned circular image in scrape: ${scannedImageUrl}. Invoking Gemini Vision...`);
+        const visionData = await parseSchemeImage({ imageUrl: scannedImageUrl });
+
+        extractedData = {
+          ...extractedData,
+          tender_id: extractedData.tender_id || visionData.tender_id,
+          title: visionData.title || extractedData.title,
+          issuing_agency: visionData.issuing_agency || extractedData.issuing_agency,
+          budget_usd: extractedData.budget_usd || visionData.budget_usd,
+          budget_inr: visionData.budget_inr,
+          submission_deadline: visionData.submission_deadline || extractedData.submission_deadline,
+          eligibility: visionData.eligibility || extractedData.eligibility,
+          benefits_summary: visionData.benefits_summary,
+          required_documents: visionData.required_documents || [],
+          scanned_image_url: scannedImageUrl,
+          corrigendum_detected: visionData.corrigendum_detected,
+          extraction_confidence: Math.max(extractedData.extraction_confidence || 0, visionData.extraction_confidence || 0.9),
+        };
+        visionEnhanced = true;
+        logger.info(`[TINYFISH:VISION] Successfully enriched scraped tender with Gemini Vision intelligence!`);
+      }
+    } catch (vErr) {
+      logger.warn(`[TINYFISH:VISION] Automatic circular vision extraction skipped: ${vErr.message}`);
+    }
+
     // Save into snapshot store and MongoDB
     if (extractedData.tender_id) {
       snapshotStore.save(extractedData);
@@ -175,7 +217,7 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
               eligibility: extractedData.eligibility,
               source_url: extractedData.source_url,
               extraction_confidence: extractedData.extraction_confidence,
-              status: 'MONITORED',
+              status: extractedData.corrigendum_detected ? 'CORRIGENDUM_ISSUED' : 'MONITORED',
             },
           },
           { upsert: true, new: true }
@@ -189,6 +231,8 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
     return res.json({
       status: 'success',
       source: 'tinyfish_live',
+      vision_enhanced: visionEnhanced,
+      scanned_image_url: scannedImageUrl,
       data: extractedData,
       markdown_preview: markdownPreview,
       request_id: requestId,
@@ -508,6 +552,60 @@ router.post('/monitor/sweep', async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: `Failed to execute monitoring sweep: ${err.message}`,
+      request_id: requestId,
+      timestamp,
+    });
+  }
+});
+
+/**
+ * 7. POST /api/tenders/parse-image
+ * Multimodal AI OCR / Document Intelligence for messy scanned scheme circulars, notices, and tenders
+ */
+router.post('/parse-image', validateBody(parseImageBodySchema), async (req, res) => {
+  const requestId = req.id;
+  const timestamp = new Date().toISOString();
+  const { base64Data, imageUrl, mimeType, save_to_database } = req.body;
+
+  try {
+    const extractedData = await parseSchemeImage({ base64Data, imageUrl, mimeType });
+
+    let savedRecord = null;
+    if (save_to_database && extractedData.tender_id) {
+      try {
+        savedRecord = await Tender.findOneAndUpdate(
+          { tender_id: extractedData.tender_id },
+          {
+            $set: {
+              title: extractedData.title,
+              issuing_agency: extractedData.issuing_agency,
+              budget_usd: extractedData.budget_usd || 0,
+              submission_deadline: extractedData.submission_deadline,
+              eligibility: extractedData.eligibility,
+              source_url: imageUrl || 'Scanned Circular Upload',
+              status: extractedData.corrigendum_detected ? 'CORRIGENDUM_ISSUED' : 'MONITORED',
+              extraction_confidence: extractedData.extraction_confidence,
+            },
+          },
+          { upsert: true, new: true }
+        );
+      } catch (dbErr) {
+        logger.warn(`[VISION:DB] Could not save extracted tender: ${dbErr.message}`);
+      }
+    }
+
+    return res.json({
+      status: 'success',
+      data: extractedData,
+      saved_to_db: Boolean(savedRecord),
+      request_id: requestId,
+      timestamp,
+    });
+  } catch (err) {
+    logger.error(`[VISION:PARSE] Error parsing image: ${err.message}`);
+    return res.status(500).json({
+      status: 'error',
+      message: err.message,
       request_id: requestId,
       timestamp,
     });
