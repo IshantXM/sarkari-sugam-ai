@@ -75,17 +75,17 @@ app.use(errorHandler);
 // Start Server
 const server = app.listen(config.port, () => {
   logger.info(`=======================================================`);
-  logger.info(`🚀 Sarkari Sugam AI Backend running on port ${config.port}`);
+  logger.info(`Sarkari Sugam AI Backend running on port ${config.port}`);
   logger.info(
-    `⚙️  Active Mode: ${
+    `Active Mode: ${
       config.demoMode ? 'DEMO_MODE (seeded / resilient playback)' : 'LIVE_MODE (TinyFish Web API)'
     }`
   );
-  logger.info(`🔑 TinyFish Status: ${config.tinyfish.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Safe Demo)'}`);
+  logger.info(`TinyFish Status: ${config.tinyfish.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Safe Demo)'}`);
   logger.info(
-    `🔒 Portal Auth Status: ${config.portal.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Simulated Auth)'}`
+    `Portal Auth Status: ${config.portal.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Simulated Auth)'}`
   );
-  logger.info(`📢 Alert Delivery: ${config.isSlackConfigured ? 'SLACK LIVE' : 'SIMULATED MODE'}`);
+  logger.info(`Alert Delivery: ${config.isSlackConfigured ? 'SLACK LIVE' : 'SIMULATED MODE'}`);
   logger.info(`=======================================================`);
 });
 

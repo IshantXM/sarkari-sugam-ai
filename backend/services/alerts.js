@@ -31,21 +31,20 @@ export async function dispatchAlert({ tenderId, changes = [], addendumNotice = '
   const changesSummary = changes
     .map(
       (c) =>
-        `• *${c.field}*: \`${c.previous_value ?? 'N/A'}\` ➔ \`${c.updated_value ?? 'N/A'}\`${
+        `• *${c.field}*: \`${c.previous_value ?? 'N/A'}\` -> \`${c.updated_value ?? 'N/A'}\`${
           c.delta !== null && c.delta !== undefined ? ` (Delta: ${c.delta > 0 ? '+' : ''}${c.delta})` : ''
         }`
     )
     .join('\n');
 
   const slackPayload = {
-    text: `🚨 *Corrigendum Alert: Tender Mutation Detected* (${tenderId})`,
+    text: `[ALERT] *Corrigendum Alert: Tender Mutation Detected* (${tenderId})`,
     blocks: [
       {
         type: 'header',
         text: {
           type: 'plain_text',
-          text: `🚨 Tender Corrigendum Alert: ${tenderId}`,
-          emoji: true,
+          text: `[ALERT] Tender Corrigendum Alert: ${tenderId}`,
         },
       },
       {

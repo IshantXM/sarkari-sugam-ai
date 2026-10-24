@@ -4,17 +4,17 @@ An enterprise-grade, zero-crash procurement and RFP discovery/monitoring engine 
 
 ---
 
-## 🌟 Key Capabilities & WOW Factors
+## Key Capabilities & WOW Factors
 
 1. **Discovery Bias & Deduplication (`/api/tenders/search`)**: Automatically enriches search queries to pierce through municipal and state government portals and deduplicates listings.
-2. **WOW 1: Context Shrink (`/api/tenders/fetch`)**: Converts heavy JavaScript/DOM government portal pages into clean, token-efficient Markdown, achieving **96%+ token compression** and real-time LLM cost savings telemetry.
+2. **WOW 1: Context Shrink (`/api/tenders/fetch`)**: Converts heavy JavaScript/DOM government portal pages into clean, token-efficient Markdown, extracting structured procurement fields seamlessly.
 3. **WOW 2: Gated Portal Navigation (`/api/tenders/agent`)**: Employs TinyFish Web Agent to authenticate through gated procurement login forms, solve multi-step search wizards, paginate results, and extract hidden document links without exposing credentials to the client.
 4. **WOW 3: Corrigendum & Mutation Alerting (`/api/tenders/diff`)**: Performs field-level diffing between historical baselines and current portal notices, detects critical changes (budget shifts, deadline extensions), and dispatches formatted Slack webhook alerts.
 5. **Stage Demo Resilience**: Every endpoint supports graceful, instantaneous fallback to certified audit seed data if live networks or third-party gateways encounter transient failures. **The demo never crashes.**
 
 ---
 
-## 🚀 Quickstart & Setup
+## Quickstart & Setup
 
 ### Prerequisites
 - Node.js 20+
@@ -48,7 +48,7 @@ cp .env.example .env
 
 ---
 
-## ⚙️ Environment Variables & Mode Switching
+## Environment Variables & Mode Switching
 
 All environment variables are defined in `.env.example`:
 
@@ -73,7 +73,7 @@ All environment variables are defined in `.env.example`:
 
 ---
 
-## 📡 Endpoints Table & Examples
+## Endpoints Table & Examples
 
 ### 1. Health & Config Status (`GET /api/health`)
 * **Description:** Check service availability, configuration flags, and active uptime. Never leaks secrets.
@@ -134,8 +134,8 @@ curl -X POST http://localhost:5000/api/tenders/search \
 
 ---
 
-### 3. WOW 1: Context Shrink & Telemetry (`POST /api/tenders/fetch`)
-* **Description:** Fetches target URL, prunes boilerplate DOM, outputs clean Markdown, extracts fields, and measures LLM cost savings.
+### 3. WOW 1: Context Shrink (`POST /api/tenders/fetch`)
+* **Description:** Fetches target URL, prunes boilerplate DOM, outputs clean Markdown, and extracts structured fields.
 * **cURL Command:**
 ```bash
 curl -X POST http://localhost:5000/api/tenders/fetch \
@@ -155,15 +155,6 @@ curl -X POST http://localhost:5000/api/tenders/fetch \
     "eligibility": "ISO 27001, 3+ yrs gov experience",
     "source_url": "https://stateprocure.gov/tenders/cloud-infra-2026",
     "extraction_confidence": 1.0
-  },
-  "telemetry": {
-    "raw_tokens": 42840,
-    "pruned_tokens": 1450,
-    "compression_ratio": "96.6%",
-    "latency_ms": 342,
-    "cost_usd_raw": 0.06426,
-    "cost_usd_pruned": 0.0029,
-    "savings_usd": 0.06136
   },
   "markdown_preview": "# STATE PROCUREMENT PORTAL - NOTICE INVITING TENDER (NIT)\n\n## Tender Overview\n* **Tender No / Reference:** STATE-IT-2026-0417...",
   "request_id": "req_v83k9d02",
@@ -259,7 +250,7 @@ curl -X POST http://localhost:5000/api/tenders/diff \
 
 ---
 
-## ⏱️ 2-Minute Stage Demo Script
+## 2-Minute Stage Demo Script
 
 Follow this sequence live on stage to showcase the 3 core WOW factors in under 120 seconds:
 
@@ -275,9 +266,9 @@ Fetch a heavy government procurement tender:
 ```bash
 curl -s -X POST http://localhost:5000/api/tenders/fetch \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://stateprocure.gov/tenders/cloud-infra-2026"}' | jq '{data: .data, telemetry: .telemetry}'
+  -d '{"url": "https://stateprocure.gov/tenders/cloud-infra-2026"}' | jq '{data: .data, markdown_preview: .markdown_preview}'
 ```
-*Presenter script:* "Standard government portals waste over 40,000 tokens on bloated HTML, navigation menus, and scripts. TinyFish extracts clean Markdown in 342ms with **96.6% token reduction**, slashing LLM processing costs and eliminating hallucination."
+*Presenter script:* "Standard government portals waste over 40,000 tokens on bloated HTML, navigation menus, and scripts. TinyFish extracts clean Markdown in 342ms, eliminating hallucination and isolating critical tender fields."
 
 ### Step 2: WOW 2 — Gated Portal Navigation (40s)
 Run the autonomous agent through a login-protected portal:
@@ -299,7 +290,7 @@ curl -s -X POST http://localhost:5000/api/tenders/diff \
 
 ---
 
-## 🛡️ Security & Zero-Crash Guarantees
+## Security & Zero-Crash Guarantees
 
 1. **Zero Secret Leakage:** `TINYFISH_API_KEY`, `PORTAL_USER`, and `PORTAL_PASS` exist exclusively server-side. The custom logger redacts all occurrences in logs and error streams.
 2. **Strict Zod Body Validation:** Malformed JSON, short strings, and non-HTTP(S) schemes (e.g. `javascript:`, `file:`) return clean `HTTP 400 validation_failed` responses without uncaught exceptions.

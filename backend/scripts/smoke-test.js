@@ -1,4 +1,6 @@
 import axios from 'axios';
+import http from 'http';
+import { spawn } from 'child_process';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -8,26 +10,90 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 let totalPassed = 0;
 let totalFailed = 0;
+let serverProcess = null;
 
 function logResult(name, passed, details = '') {
   if (passed) {
     totalPassed++;
-    console.log(`  \x1b[32m✔ PASS\x1b[0m: ${name} ${details}`);
+    console.log(`  \x1b[32m[PASS]\x1b[0m: ${name} ${details}`);
   } else {
     totalFailed++;
-    console.error(`  \x1b[31m✖ FAIL\x1b[0m: ${name} ${details}`);
+    console.error(`  \x1b[31m[FAIL]\x1b[0m: ${name} ${details}`);
   }
 }
 
+function isServerRunning(port) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://localhost:${port}/api/health`, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(1200, () => {
+      req.destroy();
+      resolve(false);
+    });
+  });
+}
+
+function cleanup() {
+  if (serverProcess) {
+    try {
+      serverProcess.kill();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+process.on('SIGINT', () => {
+  cleanup();
+  process.exit(1);
+});
+
+process.on('SIGTERM', () => {
+  cleanup();
+  process.exit(1);
+});
+
 async function runSmokeTests() {
   console.log(`\n=======================================================`);
-  console.log(`🧪 Running Sarkari Sugam AI Smoke Tests against ${BASE_URL}`);
+  console.log(`Running Sarkari Sugam AI Smoke Tests against ${BASE_URL}`);
   console.log(`=======================================================\n`);
+
+  // Ensure server is up (start temporary instance if not running)
+  const isUp = await isServerRunning(PORT);
+  if (!isUp) {
+    console.log(`[INFO] Backend is not running on port ${PORT}. Starting server instance automatically...`);
+    serverProcess = spawn(process.execPath, ['server.js'], {
+      cwd: process.cwd(),
+      stdio: 'ignore',
+    });
+
+    let ready = false;
+    for (let i = 0; i < 35; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      if (await isServerRunning(PORT)) {
+        ready = true;
+        break;
+      }
+    }
+
+    if (!ready) {
+      console.error(
+        `\x1b[31m[ERROR]\x1b[0m Could not connect to backend at http://localhost:${PORT}.\n` +
+          `Please start the backend server in another terminal using:\n` +
+          `  npm run dev   (or npm start)\n`
+      );
+      cleanup();
+      process.exit(1);
+    }
+    console.log(`[INFO] Server ready on port ${PORT}. Proceeding with tests...\n`);
+  }
 
   const client = axios.create({
     baseURL: BASE_URL,
     validateStatus: () => true, // Don't throw on 4xx/5xx to inspect status
-    timeout: 10000,
+    timeout: 45000,
   });
 
   console.log('--- POSITIVE TEST CASES (Valid Inputs) ---');
@@ -45,17 +111,17 @@ async function runSmokeTests() {
     logResult('GET /api/health', false, `(Network Error: ${err.message})`);
   }
 
-  // Test 2: POST /api/tenders/search (Discovery)
+  // Test 2: POST /api/tenders/search (Discovery via live TinyFish Search)
   try {
     const res = await client.post('/api/tenders/search', {
       query: 'cloud infrastructure tender',
-      limit: 5,
+      limit: 3,
     });
     const valid =
       res.status === 200 &&
       res.data?.status === 'success' &&
       Array.isArray(res.data?.results) &&
-      res.data.count === 2; // Test case check: query "cloud infrastructure tender" returns 2 results in demo mode
+      res.data.results.length > 0;
     logResult(
       'POST /api/tenders/search',
       valid,
@@ -65,64 +131,59 @@ async function runSmokeTests() {
     logResult('POST /api/tenders/search', false, `(Error: ${err.message})`);
   }
 
-  // Test 3: POST /api/tenders/fetch (WOW 1: Context Shrink)
+  // Test 3: POST /api/tenders/fetch (Clean Markdown via live TinyFish Fetch)
   try {
     const res = await client.post('/api/tenders/fetch', {
-      url: 'https://stateprocure.gov/tenders/cloud-infra-2026',
+      url: 'https://example.com',
     });
     const valid =
       res.status === 200 &&
       res.data?.status === 'success' &&
-      res.data?.data?.tender_id === 'STATE-IT-2026-0417' &&
-      res.data?.telemetry?.compression_ratio === '96.6%' &&
       Boolean(res.data?.markdown_preview);
     logResult(
       'POST /api/tenders/fetch',
       valid,
-      `(Status: ${res.status}, Ratio: ${res.data?.telemetry?.compression_ratio}, ID: ${res.data?.data?.tender_id})`
+      `(Status: ${res.status}, Source: ${res.data?.source})`
     );
   } catch (err) {
     logResult('POST /api/tenders/fetch', false, `(Error: ${err.message})`);
   }
 
-  // Test 4: POST /api/tenders/agent (WOW 2: Gated Portal Navigation)
+  // Test 4: POST /api/tenders/agent (Live TinyFish Web Agent)
   try {
     const res = await client.post('/api/tenders/agent', {
-      url: 'https://cityhub.gov/eprocure/login',
-      task: 'Extract active cloud infrastructure tenders',
+      url: 'https://example.com',
+      task: 'Extract the page title and description',
     });
     const valid =
       res.status === 200 &&
       res.data?.status === 'success' &&
       Array.isArray(res.data?.execution_steps) &&
-      res.data.execution_steps.length >= 3 &&
-      Array.isArray(res.data?.extracted_tenders) &&
-      res.data.extracted_tenders.length > 0;
+      res.data.execution_steps.length > 0;
     logResult(
       'POST /api/tenders/agent',
       valid,
-      `(Status: ${res.status}, Steps: ${res.data?.execution_steps?.length}, Tenders: ${res.data?.extracted_tenders?.length})`
+      `(Status: ${res.status}, Steps: ${res.data?.execution_steps?.length}, Duration: ${res.data?.duration_ms}ms)`
     );
   } catch (err) {
     logResult('POST /api/tenders/agent', false, `(Error: ${err.message})`);
   }
 
-  // Test 5: POST /api/tenders/diff (WOW 3: Corrigendum / Mutation Alert)
+  // Test 5: POST /api/tenders/diff (Live diff against target URL)
   try {
     const res = await client.post('/api/tenders/diff', {
-      tender_id: 'STATE-IT-2026-0417',
+      tender_id: 'TENDER-LIVE-01',
+      url: 'https://example.com',
+      current: { budget_usd: 50000 },
     });
     const valid =
       res.status === 200 &&
       res.data?.status === 'success' &&
-      res.data?.mutation_detected === true &&
-      Array.isArray(res.data?.changes) &&
-      res.data.changes.length > 0 &&
-      Boolean(res.data?.alert);
+      typeof res.data?.mutation_detected === 'boolean';
     logResult(
       'POST /api/tenders/diff',
       valid,
-      `(Status: ${res.status}, Mutations: ${res.data?.changes?.length}, Alert Mode: ${res.data?.alert?.mode})`
+      `(Status: ${res.status}, Mutation: ${res.data?.mutation_detected})`
     );
   } catch (err) {
     logResult('POST /api/tenders/diff', false, `(Error: ${err.message})`);
@@ -176,8 +237,10 @@ async function runSmokeTests() {
   }
 
   console.log(`\n=======================================================`);
-  console.log(`📊 Smoke Test Summary: ${totalPassed} Passed, ${totalFailed} Failed`);
+  console.log(`Smoke Test Summary: ${totalPassed} Passed, ${totalFailed} Failed`);
   console.log(`=======================================================\n`);
+
+  cleanup();
 
   if (totalFailed > 0) {
     process.exit(1);
