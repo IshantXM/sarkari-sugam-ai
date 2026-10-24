@@ -1,0 +1,25 @@
+import { Router } from 'express';
+import config from '../config/env.js';
+
+const router = Router();
+
+/**
+ * GET /api/health
+ * Returns service status, configuration flags, and uptime.
+ * Never includes raw secret values.
+ */
+router.get('/', (req, res) => {
+  res.json({
+    ok: true,
+    demo_mode: config.demoMode,
+    tinyfish_configured: config.tinyfish.isConfigured,
+    portal_credentials_configured: config.portal.isConfigured,
+    slack_configured: config.isSlackConfigured,
+    uptime_seconds: Math.floor(process.uptime()),
+    version: '1.0.0',
+    request_id: req.id,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+export default router;
