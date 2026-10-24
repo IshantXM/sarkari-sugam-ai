@@ -66,8 +66,7 @@ function ActivityIcon() {
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [healthData, setHealthData] = useState(null);
-  const [showJsonInspector, setShowJsonInspector] = useState(false);
-  const [lastRawResponse, setLastRawResponse] = useState(null);
+
 
   // Search State
   const [searchQuery, setSearchQuery] = useState('highway road construction tender');
@@ -77,9 +76,7 @@ export default function App() {
   const [searchError, setSearchError] = useState(null);
 
   // Fetch State
-  const [fetchUrl, setFetchUrl] = useState(
-    'https://eprocure.gov.in/eprocure/app?component=%24DirectLink&page=FrontEndViewTender&service=direct&session=T&sp=SWWYD8TQhQYENtniIfmtVcw%3D%3D'
-  );
+  const [fetchUrl, setFetchUrl] = useState('');
   const [fetchLoading, setFetchLoading] = useState(false);
   const [fetchData, setFetchData] = useState(null);
   const [fetchError, setFetchError] = useState(null);
@@ -119,7 +116,6 @@ export default function App() {
         const data = await res.json();
         if (!ignore) {
           setHealthData(data);
-          setLastRawResponse({ endpoint: 'GET /api/health', status: res.status, data });
         }
       } catch {
         if (!ignore) {
@@ -142,7 +138,6 @@ export default function App() {
 
     setSearchLoading(true);
     setSearchError(null);
-    const start = performance.now();
 
     try {
       const res = await fetch('/api/tenders/search', {
@@ -151,12 +146,6 @@ export default function App() {
         body: JSON.stringify({ query: searchQuery, limit: Number(searchLimit) }),
       });
       const data = await res.json();
-      setLastRawResponse({
-        endpoint: 'POST /api/tenders/search',
-        status: res.status,
-        durationMs: Math.round(performance.now() - start),
-        data,
-      });
 
       if (!res.ok) throw new Error(data.message || 'Search failed');
       setSearchResults(data.results || []);
@@ -176,7 +165,6 @@ export default function App() {
     setFetchLoading(true);
     setFetchError(null);
     setFetchData(null);
-    const start = performance.now();
 
     try {
       const res = await fetch('/api/tenders/fetch', {
@@ -185,12 +173,6 @@ export default function App() {
         body: JSON.stringify({ url: fetchUrl }),
       });
       const data = await res.json();
-      setLastRawResponse({
-        endpoint: 'POST /api/tenders/fetch',
-        status: res.status,
-        durationMs: Math.round(performance.now() - start),
-        data,
-      });
 
       if (!res.ok) throw new Error(data.message || 'Fetch failed');
       setFetchData(data.data);
@@ -219,7 +201,6 @@ export default function App() {
     setDiffLoading(true);
     setDiffError(null);
     setDiffResult(null);
-    const start = performance.now();
 
     const payload = {
       tender_id: diffTenderId,
@@ -239,12 +220,6 @@ export default function App() {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      setLastRawResponse({
-        endpoint: 'POST /api/tenders/diff',
-        status: res.status,
-        durationMs: Math.round(performance.now() - start),
-        data,
-      });
 
       if (!res.ok) throw new Error(data.message || 'Diff failed');
       setDiffResult(data);
@@ -321,9 +296,6 @@ export default function App() {
                 <MonitorIcon />
                 <span>Monitor</span>
               </div>
-              <span className="tf-badge tf-badge-orange" style={{ fontSize: '10px' }}>
-                Live
-              </span>
             </button>
           </div>
 
@@ -366,9 +338,9 @@ export default function App() {
         {/* Top Header Bar */}
         <div className="tf-top-bar">
           <div>
-            <div className="tf-welcome-sub">Welcome back</div>
+            {activeTab === 'home' && <div className="tf-welcome-sub">Welcome back</div>}
             <h1 className="tf-page-title">
-              {activeTab === 'home' && "Ishant's console"}
+              {activeTab === 'home' && "Ishant"}
               {activeTab === 'search' && 'Search Playground'}
               {activeTab === 'fetch' && 'Structured Fetch Playground'}
               {activeTab === 'diff' && 'Monitor & Corrigendum Watchdog'}
@@ -376,13 +348,7 @@ export default function App() {
             </h1>
           </div>
 
-          <div className="tf-top-actions">
-            <span className="tf-badge tf-badge-gray" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#059669', display: 'inline-block' }}></span>
-              eprocure.gov.in Live Gateway
-            </span>
-            <span className="tf-badge tf-badge-emerald">System Online</span>
-          </div>
+
         </div>
 
         {/* Highlight Banner (Setup MCP or CLI from screenshot) */}
@@ -453,13 +419,12 @@ export default function App() {
                 </div>
 
                 {/* Monitor Card */}
-                <div className="tf-tool-card active-accent" onClick={() => setActiveTab('diff')}>
+                <div className="tf-tool-card" onClick={() => setActiveTab('diff')}>
                   <div>
                     <div className="tf-tool-card-top">
                       <div className="icon-box-pattern">
                         <MonitorIcon />
                       </div>
-                      <span className="tf-badge tf-badge-orange">New</span>
                     </div>
                     <div className="tf-tool-card-title">Monitor & Diff</div>
                     <div className="tf-tool-card-desc">
@@ -688,7 +653,6 @@ export default function App() {
                     Extracts session-gated government portals into a guaranteed JSON schema
                   </div>
                 </div>
-                <span className="tf-badge tf-badge-gray">POST /api/tenders/fetch</span>
               </div>
 
               <form onSubmit={handleFetch}>
@@ -704,30 +668,6 @@ export default function App() {
                   <button type="submit" className="tf-btn tf-btn-orange" disabled={fetchLoading}>
                     {fetchLoading ? 'Extracting...' : 'Extract'}
                   </button>
-                </div>
-
-                <div className="tf-chip-group">
-                  <span className="tf-chip-label">Test Real Procurement Notices</span>
-                  <div className="tf-chip-list">
-                    <button
-                      type="button"
-                      className="tf-chip highlight"
-                      onClick={() =>
-                        setFetchUrl(
-                          'https://eprocure.gov.in/eprocure/app?component=%24DirectLink&page=FrontEndViewTender&service=direct&session=T&sp=SWWYD8TQhQYENtniIfmtVcw%3D%3D'
-                        )
-                      }
-                    >
-                      eprocure.gov.in (MoRTH Highway SH-52 - Live Test)
-                    </button>
-                    <button
-                      type="button"
-                      className="tf-chip"
-                      onClick={() => setFetchUrl('https://example.com')}
-                    >
-                      example.com (Fast Sanity Check)
-                    </button>
-                  </div>
                 </div>
               </form>
 
@@ -825,7 +765,6 @@ export default function App() {
                     Re-fetches target and detects unannounced amendments, budget shifts, or deadline changes
                   </div>
                 </div>
-                <span className="tf-badge tf-badge-gray">POST /api/tenders/diff</span>
               </div>
 
               <form onSubmit={handleDiff}>
@@ -985,31 +924,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Optional Collapsed Developer Drawer */}
-        <div style={{ marginTop: '40px', borderTop: '1px solid var(--tf-border)', paddingTop: '16px' }}>
-          <div
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-            onClick={() => setShowJsonInspector(!showJsonInspector)}
-          >
-            <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--tf-text-muted)', textTransform: 'uppercase' }}>
-              Developer Payload Inspector (Optional)
-            </span>
-            <span style={{ fontSize: '12px', color: 'var(--tf-orange)', fontWeight: '500' }}>
-              {showJsonInspector ? 'Hide raw JSON' : 'Show raw JSON'}
-            </span>
-          </div>
 
-          {showJsonInspector && lastRawResponse && (
-            <div style={{ marginTop: '10px', padding: '16px', background: '#ffffff', border: '1px solid var(--tf-border)', borderRadius: '8px' }}>
-              <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px', color: 'var(--tf-text-secondary)' }}>
-                {lastRawResponse.endpoint} ({lastRawResponse.status})
-              </div>
-              <pre style={{ fontSize: '12px', color: 'var(--tf-text-primary)', overflowX: 'auto' }}>
-                {JSON.stringify(lastRawResponse.data, null, 2)}
-              </pre>
-            </div>
-          )}
-        </div>
       </main>
     </div>
   );
