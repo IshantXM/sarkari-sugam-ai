@@ -1,20 +1,11 @@
-<p align="center">
-  <img src="assets/hero-banner.png" alt="Sarkari Sugam AI Hero Banner" width="100%" style="border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.6);" />
-</p>
+# 🏛️ Sarkari Sugam AI
+> Autonomous Government Procurement & Scheme Intelligence Platform: Bridging Legacy Gated Portals with Headless AI Agents, Multimodal Scanned Vision, and Live Corrigendum Watchdogs.
 
-<h1 align="center">🏛️ Sarkari Sugam AI</h1>
-<p align="center">
-  <strong>Autonomous Government Procurement & Scheme Intelligence Platform</strong><br>
-  <em>Bridging Legacy Gated Portals with Headless AI Agents, Multimodal Scanned Vision, and Live Corrigendum Watchdogs.</em>
-</p>
-
-<p align="center">
-  <a href="#-system-architecture--deep-dive"><img src="https://img.shields.io/badge/Architecture-Dual--Port%20Resilient%20Bridge%20(5000%2F5005)-blue?style=for-the-badge&logo=node.js" alt="Architecture" /></a>
-  <a href="#-core-features--track-alignment"><img src="https://img.shields.io/badge/Bounty-Best%20Use%20of%20TinyFish%20AI%20($3000)-ff6b35?style=for-the-badge&logo=openai" alt="Bounty" /></a>
-  <a href="#-multimodal-scanned-circular-pipeline"><img src="https://img.shields.io/badge/Vision%20AI-Gemini%203.5%20Flash-8A2BE2?style=for-the-badge&logo=google" alt="Gemini Vision" /></a>
-  <a href="#-polyglot-database-layer"><img src="https://img.shields.io/badge/Database-Supabase%20Postgres%20%2B%20Mongo-3ECF8E?style=for-the-badge&logo=supabase" alt="Database" /></a>
-  <a href="https://choosealicense.com/licenses/mit/"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" /></a>
-</p>
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Track: Best Use of TinyFish AI](https://img.shields.io/badge/Track-Best%20Use%20of%20TinyFish%20AI%20%26%20Civic%20Tech-orange.svg)](#-core-features--track-alignment)
+[![Backend Port](https://img.shields.io/badge/Backend%20Port-5005-blue.svg)](#-system-architecture--deep-dive)
+[![Vision AI](https://img.shields.io/badge/Vision%20AI-Gemini%203.5%20Flash-8A2BE2.svg)](#-multimodal-scanned-circular-pipeline)
+[![Database](https://img.shields.io/badge/Database-Supabase%20Postgres-3ECF8E.svg)](#-system-architecture--deep-dive)
 
 <p align="center">
   <a href="#-the-pitch">The Pitch</a> •
@@ -46,33 +37,70 @@ Over **₹100,000+ Crore ($12 Billion+)** in Indian public tenders, infrastructu
 ### Why it Wins
 - 🏆 **Best Use of TinyFish AI Bounty:** Goes far beyond basic scraping by utilizing TinyFish's browser automation to negotiate authentic session-gated portal flows and deliver structured schema contracts.
 - 🏛️ **Best Civic Tech & Public Impact:** Democratizes access to public procurement for small contractors, startups, and citizens who cannot afford dedicated tender monitoring bureaus.
-- ⚡ **Elite Enterprise Reliability:** Engineered with an in-memory **Dual-Port Bridge** (`5000` & `5005`), Zod runtime boundary validation, and a **Polyglot Database Adapter** combining Supabase PostgreSQL connection pooling with MongoDB failover.
+- ⚡ **Dedicated High-Performance Backend:** Engineered with a single, streamlined Express API Gateway running on **Port 5005**, Zod runtime boundary validation, and a **Polyglot Database Adapter** combining Supabase PostgreSQL connection pooling with MongoDB failover.
 
 ---
 
 ## 🛠️ System Architecture & Deep-Dive
 
-<p align="center">
-  <img src="assets/architecture-diagram.png" alt="Sarkari Sugam AI System Blueprint" width="100%" style="border-radius: 10px; border: 1px solid #1f2937; box-shadow: 0 12px 30px rgba(0,0,0,0.5);" />
-</p>
+### High-Level Architecture
+
+```text
++---------------------------------------------------------------------------------------------------+
+|                                        CLIENT SURFACE                                             |
+|              React 19 SPA (Vite) + Custom Institutional Design System + Live Telemetry            |
++-------------------------------------------------+-------------------------------------------------+
+                                                  |
+                                        HTTP / JSON (REST API)
+                                                  |
+                                                  v
++---------------------------------------------------------------------------------------------------+
+|                                      BACKEND API GATEWAY                                          |
+|            Node.js + Express (Port 5005) + Zod Runtime Schema Validation + CORS Security          |
++-------------------------+-------------------------------+-----------------------------------------+
+                          |                               |
+                          v                               v
++-----------------------------+               +-----------------------------+
+|    TINYFISH AGENT ENGINE    |               |  MULTIMODAL AI VISION OCR   |
+| • Headless Portal Nav       |               | • Gemini 3.5 Flash Engine   |
+| • Session Credential Inject |               | • Scanned JPG / PNG Parsing |
+| • Clean DOM Pruning         |               | • Bilingual Table Ingestion |
++--------------+--------------+               +--------------+--------------+
+               |                                             |
+               +----------------------+----------------------+
+                                      |
+                                      v
++---------------------------------------------------------------------------------------------------+
+|                                  POLYGLOT PERSISTENCE LAYER                                       |
+|           Supabase PostgreSQL (Connection Pooling) <---> MongoDB Failover Driver                  |
++-------------------------------------+-------------------------------------------------------------+
+                                      |
+                                      v
++---------------------------------------------------------------------------------------------------+
+|                                 AUTONOMOUS WATCHDOG DAEMON                                        |
+|      Unref'd Background Heartbeat Sweeper + Differential Delta Hasher + Slack / SMTP Alerts       |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
 
 ### Comprehensive Component Architecture
 
 ```mermaid
 graph TB
     subgraph Client_Surface ["Client Surface (Frontend)"]
-        UI["React 19 SPA (Vite)"]
+        UI["React 19 SPA (Vite :5173)"]
         Console["High-Density Tender & Scheme Console"]
         Telemetry["Live System Health & Metric Monitor"]
         UI --> Console
         UI --> Telemetry
     end
 
-    subgraph API_Gateway ["Backend Gateway (Node.js & Express)"]
-        DualPort["Dual-Port Listener Bridge\n(Port 5000 Primary + Port 5005 Bridge)"]
+    subgraph API_Gateway ["Backend Gateway (Node.js & Express :5005)"]
+        SinglePort["Dedicated Port 5005 Engine"]
         Middleware["Zod Input Validation + Rate Limiter + CORS"]
         Router["Express Route Controller (/api/tenders, /api/health, /api/auth)"]
-        DualPort --> Middleware --> Router
+        SinglePort --> Middleware --> Router
     end
 
     subgraph Agent_Intelligence ["Agent & Scraping Engine"]
@@ -108,7 +136,7 @@ graph TB
         DBManager --> SnapshotStore
     end
 
-    UI -->|"HTTP / REST API"| DualPort
+    UI -->|"HTTP / REST API (:5005)"| SinglePort
     Router -->|"Session Scrape Task"| TinyFish
     DOMPruner -->|"Scanned Notices Found"| ImgDetector
     Router -->|"Direct Image Upload"| ImgDetector
@@ -126,7 +154,7 @@ sequenceDiagram
     autonumber
     actor User as Contractor / Citizen
     participant FE as React Frontend (:5173)
-    participant BE as Express API (:5000/:5005)
+    participant BE as Express API (:5005)
     participant TF as TinyFish Web Agent
     participant GovPortal as Target Gov Portal (GeM/eProcure)
     participant Vision as Gemini 3.5 Flash API
@@ -175,12 +203,7 @@ Traditional OCR engines (like Tesseract) fail completely on government notices b
 
 Sarkari Sugam AI incorporates a dedicated Multimodal Vision Pipeline powered by **Gemini 3.5 Flash**:
 
-<p align="center">
-  <img src="assets/scanned-circular-sample.png" alt="Scanned Government Circular Notice Example" width="48%" style="border-radius: 8px; border: 1px solid #374151; box-shadow: 0 8px 24px rgba(0,0,0,0.4);" />
-</p>
-
-### Real Extracted Output from Scanned Notice Above
-
+### Real Extracted Output from Official Notice
 ```json
 {
   "tender_id": "F. No. 11011/32/2026-M&RD",
@@ -226,10 +249,9 @@ Sarkari Sugam AI incorporates a dedicated Multimodal Vision Pipeline powered by 
   $$\Delta_{\text{deadline}} = \text{Date}_{\text{new}} - \text{Date}_{\text{old}}$$
 - Triggers instant notifications via **Slack Incoming Webhooks** and **Nodemailer SMTP** email alerts.
 
-### 4. Enterprise Dual-Port Compatibility Bridge
+### 4. Dedicated Single-Port 5005 Gateway
 > **Track:** *Best Full-Stack Architecture & UX*
-- Resolves frontend/backend proxy synchronization by binding **Port 5000 (Primary)** and **Port 5005 (Bridge)** concurrently on the exact same Express instance.
-- Guarantees zero port mismatches across developer terminals, automated CI/CD pipelines, and Vite dev servers.
+- Standardized backend execution on **Port 5005** with aligned Vite proxy routing, providing clean socket isolation and zero port collision risks.
 
 ---
 
@@ -238,7 +260,7 @@ Sarkari Sugam AI incorporates a dedicated Multimodal Vision Pipeline powered by 
 | Layer | Technologies Used | Architectural Justification |
 | :--- | :--- | :--- |
 | **Frontend** | React 19, Vite, Vanilla CSS3 (Custom Tokens) | Zero CSS-framework runtime overhead, sub-second HMR, and bespoke institutional dark-mode console aesthetic. |
-| **Backend** | Node.js, Express 4, Zod, Axios | Non-blocking event-driven I/O with strict runtime input validation guaranteeing fail-fast API boundaries. |
+| **Backend** | Node.js, Express 4, Zod, Axios | Non-blocking event-driven I/O running on port 5005 with strict runtime input validation guaranteeing fail-fast API boundaries. |
 | **Agent Scraping** | TinyFish Web API & Agent Service | Cloud-native browser automation capable of session authentication, cookie injection, and DOM pruning. |
 | **Vision & AI** | Google Gemini 3.5 Flash REST API | High-throughput (2.4s latency), sub-penny token economics, and native bilingual Indic OCR capabilities. |
 | **Databases** | Supabase (PostgreSQL 15), MongoDB (Mongoose) | Relational integrity with connection pooling for enterprise monitoring, backed by document-store failover. |
@@ -252,7 +274,7 @@ Sarkari Sugam AI incorporates a dedicated Multimodal Vision Pipeline powered by 
 *Parses raw base64 or URL image circulars via Gemini 3.5 Flash.*
 
 ```bash
-curl -X POST http://localhost:5000/api/tenders/parse-image \
+curl -X POST http://localhost:5005/api/tenders/parse-image \
   -H "Content-Type: application/json" \
   -d '{
     "base64Data": "data:image/jpeg;base64,...",
@@ -264,7 +286,7 @@ curl -X POST http://localhost:5000/api/tenders/parse-image \
 *Executes TinyFish live web agent scrape + automated multimodal circular detection.*
 
 ```bash
-curl -X POST http://localhost:5000/api/tenders/fetch \
+curl -X POST http://localhost:5005/api/tenders/fetch \
   -H "Content-Type: application/json" \
   -d '{
     "url": "https://eprocure.gov.in/eprocure/app?page=FrontEndTenderDetails"
@@ -275,7 +297,7 @@ curl -X POST http://localhost:5000/api/tenders/fetch \
 *Calculates differential mutation deltas between baseline and live portal states.*
 
 ```bash
-curl -X POST http://localhost:5000/api/tenders/diff \
+curl -X POST http://localhost:5005/api/tenders/diff \
   -H "Content-Type: application/json" \
   -d '{
     "tender_id": "TNDR-SWWYD8TQHQYENTNI",
@@ -287,7 +309,7 @@ curl -X POST http://localhost:5000/api/tenders/diff \
 *Returns comprehensive telemetry, connection pooling status, and uptime.*
 
 ```bash
-curl http://localhost:5000/api/health
+curl http://localhost:5005/api/health
 ```
 
 ---
@@ -331,7 +353,7 @@ npm install
 ### 2. Environment Configuration
 Create `backend/.env`:
 ```env
-PORT=5000
+PORT=5005
 DEMO_MODE=false
 CORS_ORIGIN=http://localhost:5173
 
@@ -364,7 +386,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T00/B00/XXXXX
 
 ### 3. Initialize & Run
 ```bash
-# Terminal 1: Launch Backend Gateway (Dual-Port Engine on 5000 & 5005)
+# Terminal 1: Launch Backend Gateway (Port 5005)
 cd backend
 npm run dev
 
@@ -382,7 +404,7 @@ npm run test:smoke
 ## 🛑 Challenges Faced & Lessons Learned
 
 - **The Technical Hurdle:** Government notices routinely bury mission-critical data inside degraded scanned notices with watermarks, official blue ink stamps, and bilingual headers. Traditional OCR engines produced unusable gibberish on tabular criteria. Under a 48-hour crunch, we bypassed traditional OCR by routing extracted image URLs directly to `gemini-3.5-flash` with strict Zod JSON schema enforcement, achieving 95% extraction confidence in under 2.5 seconds with zero native C++ build dependencies on Windows.
-- **The Pivot:** During team integration, team members experienced intermittent connection drops between ports `5000` and `5005` due to differing Vite proxy configurations across branches. Instead of forcing manual config synchronization, we implemented an in-memory **Dual-Port Compatibility Bridge** in `server.js` that binds both `5000` and `5005` concurrently, making port collisions physically impossible across frontend environments.
+- **The Pivot:** During team integration, team members experienced connection drops due to differing Vite proxy configurations across branches. We standardized the entire architecture strictly around **Port 5005**, aligning the Vite dev proxy, Express listener, and test scripts to guarantee clean socket isolation and deterministic network boundaries.
 
 ---
 
@@ -397,7 +419,7 @@ npm run test:smoke
 
 | Member | Role | Key Contributions | GitHub |
 | :--- | :--- | :--- | :--- |
-| **Ishant Mohan** | *Team Lead & Backend Architect* | Dual-port Express gateway, TinyFish agent orchestration, Supabase PostgreSQL persistence | [@IshantXM](https://github.com/IshantXM) |
+| **Ishant Mohan** | *Team Lead & Backend Architect* | Port 5005 Express gateway, TinyFish agent orchestration, Supabase PostgreSQL persistence | [@IshantXM](https://github.com/IshantXM) |
 | **Shashwat Singh** | *Backend & Multimodal AI Engineer* | Gemini 3.5 Flash scanned vision parser, differential mutation hasher, watchdog alerts | [@shashwatsingh](https://github.com/shashwatsingh) |
 | **Manas Tripathi** | *Frontend & UI/UX Engineer* | High-density institutional React console, real-time health telemetry, responsive layout | [@manastripathi](https://github.com/manastripathi) |
 

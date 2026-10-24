@@ -1297,10 +1297,10 @@ export default function App() {
               <div className="tf-field-box">
                 <div className="tf-field-key">BACKEND REST SERVER</div>
                 <div className="tf-field-val" style={{ color: healthData?.ok ? '#059669' : '#dc2626' }}>
-                  {healthData?.ok ? '200 OK (Port 5000)' : 'Offline'}
+                  {healthData?.ok ? '200 OK (Port 5005)' : 'Offline'}
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--tf-text-muted)', marginTop: '4px' }}>
-                  Express API gateway on localhost:5000
+                  Express API gateway on localhost:5005
                 </div>
               </div>
 
@@ -1367,11 +1367,11 @@ export default function App() {
                 </div>
                 <div>
                   <span style={{ color: 'var(--tf-text-muted)' }}>Vite Proxy Target: </span>
-                  <strong style={{ color: '#059669' }}>http://localhost:5000</strong>
+                  <strong style={{ color: '#059669' }}>http://localhost:5005</strong>
                 </div>
                 <div>
                   <span style={{ color: 'var(--tf-text-muted)' }}>Backend Express Port: </span>
-                  <strong style={{ color: '#059669' }}>5000 (Defined in backend/.env)</strong>
+                  <strong style={{ color: '#059669' }}>5005 (Defined in backend/.env)</strong>
                 </div>
               </div>
             </div>

@@ -5,7 +5,7 @@ import { z } from 'zod';
 dotenv.config();
 
 const envSchema = z.object({
-  PORT: z.coerce.number().default(5000),
+  PORT: z.coerce.number().default(5005),
   DEMO_MODE: z
     .preprocess((val) => {
       if (typeof val === 'string') {

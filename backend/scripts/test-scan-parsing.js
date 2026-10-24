@@ -12,7 +12,7 @@ async function testScannedCircular() {
 
     console.log('\nSending scanned circular to /api/tenders/parse-image...');
     const start = Date.now();
-    const res = await axios.post('http://localhost:5000/api/tenders/parse-image', {
+    const res = await axios.post('http://localhost:5005/api/tenders/parse-image', {
       base64Data,
       mimeType: 'image/jpeg',
       save_to_database: true,
