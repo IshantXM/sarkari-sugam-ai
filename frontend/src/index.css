@@ -1,111 +1,218 @@
+/* TinyFish Official Light Theme Design System for Sarkari Sugam AI */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --tf-bg-page: #fbfbfb;
+  --tf-bg-surface: #ffffff;
+  --tf-bg-sidebar: #f9fafb;
+  --tf-bg-subtle: #f3f4f6;
+  --tf-bg-hover: #f1f5f9;
+  --tf-bg-input: #ffffff;
+  --tf-bg-peach: #fff7ed;
+  --tf-border-peach: #fed7aa;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --tf-border: #e5e7eb;
+  --tf-border-subtle: #f1f5f9;
+  --tf-border-focus: #ea580c;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  --tf-text-primary: #111827;
+  --tf-text-secondary: #4b5563;
+  --tf-text-muted: #9ca3af;
+  --tf-text-subtle: #6b7280;
+
+  --tf-orange: #ea580c;
+  --tf-orange-hover: #c2410c;
+  --tf-orange-light: #fff7ed;
+  --tf-orange-border: #fdba74;
+
+  --tf-emerald: #10b981;
+  --tf-emerald-light: #ecfdf5;
+  --tf-emerald-border: #a7f3d0;
+
+  --tf-amber: #f59e0b;
+  --tf-amber-light: #fffbeb;
+  --tf-amber-border: #fde68a;
+
+  --tf-rose: #ef4444;
+  --tf-rose-light: #fef2f2;
+  --tf-rose-border: #fecaca;
+
+  --tf-blue: #2563eb;
+  --tf-blue-light: #eff6ff;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+  --shadow-hover: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  min-height: 100vh;
+  background-color: var(--tf-bg-page);
+  color: var(--tf-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-
-body {
-  margin: 0;
+::-webkit-scrollbar-track {
+  background: var(--tf-bg-page);
 }
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
   border-radius: 4px;
-  color: var(--text-h);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--tf-text-primary);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+code, pre {
+  font-family: var(--font-mono);
+}
+
+/* Dotted Pattern Icon Box matching TinyFish dashboard */
+.icon-box-pattern {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--tf-border);
+  background-color: var(--tf-bg-surface);
+  background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+  background-size: 8px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tf-text-secondary);
+}
+
+/* TinyFish Buttons */
+.tf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  outline: none;
+}
+
+.tf-btn-orange {
+  background-color: var(--tf-orange);
+  color: #ffffff;
+}
+.tf-btn-orange:hover:not(:disabled) {
+  background-color: var(--tf-orange-hover);
+}
+
+.tf-btn-secondary {
+  background-color: var(--tf-bg-surface);
+  color: var(--tf-text-primary);
+  border-color: var(--tf-border);
+}
+.tf-btn-secondary:hover:not(:disabled) {
+  background-color: var(--tf-bg-subtle);
+  border-color: #d1d5db;
+}
+
+.tf-btn-ghost {
+  background: transparent;
+  color: var(--tf-text-secondary);
+}
+.tf-btn-ghost:hover:not(:disabled) {
+  background-color: var(--tf-bg-subtle);
+  color: var(--tf-text-primary);
+}
+
+.tf-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Inputs */
+.tf-input {
+  width: 100%;
+  padding: 9px 14px;
+  background-color: var(--tf-bg-input);
+  color: var(--tf-text-primary);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tf-input:focus {
+  border-color: var(--tf-orange);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
+}
+
+.tf-input::placeholder {
+  color: var(--tf-text-muted);
+}
+
+/* Badges */
+.tf-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--radius-full);
+}
+
+.tf-badge-orange {
+  background-color: var(--tf-orange-light);
+  color: var(--tf-orange);
+  border: 1px solid var(--tf-orange-border);
+}
+
+.tf-badge-emerald {
+  background-color: var(--tf-emerald-light);
+  color: #065f46;
+  border: 1px solid var(--tf-emerald-border);
+}
+
+.tf-badge-amber {
+  background-color: var(--tf-amber-light);
+  color: #92400e;
+  border: 1px solid var(--tf-amber-border);
+}
+
+.tf-badge-gray {
+  background-color: var(--tf-bg-subtle);
+  color: var(--tf-text-secondary);
+  border: 1px solid var(--tf-border);
 }
