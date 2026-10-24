@@ -22,7 +22,14 @@ const envSchema = z.object({
   SLACK_WEBHOOK_URL: z.string().optional().default(''),
   COST_PER_1K_TOKENS_RAW: z.coerce.number().default(0.0015),
   COST_PER_1K_TOKENS_PRUNED: z.coerce.number().default(0.002),
-  MONGODB_URI: z.string().default('mongodb://localhost:27017/Sarkari%20Sugam-AI'),
+  POSTGRES_URI: z.string().optional().default(''),
+  DATABASE_URL: z.string().optional().default(''),
+  MONGODB_URI: z.string().optional().default(''),
+  SMTP_HOST: z.string().optional().default('smtp.gmail.com'),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional().default(''),
+  SMTP_PASS: z.string().optional().default(''),
+  SMTP_FROM: z.string().optional().default(''),
   JWT_SECRET: z.string().default('sarkari_sugam_ai_hackiiitd_secret_token_2026'),
   JWT_EXPIRES_IN: z.string().default('24h'),
 });
@@ -71,10 +78,21 @@ export const config = Object.freeze({
     rawPer1k: rawConfig.COST_PER_1K_TOKENS_RAW,
     prunedPer1k: rawConfig.COST_PER_1K_TOKENS_PRUNED,
   },
+  postgresUri: rawConfig.POSTGRES_URI || rawConfig.DATABASE_URL || '',
   mongodbUri: rawConfig.MONGODB_URI,
+  databaseUri: rawConfig.POSTGRES_URI || rawConfig.DATABASE_URL || rawConfig.MONGODB_URI || 'mongodb://localhost:27017/Sarkari%20Sugam-AI',
+  databaseType: (rawConfig.POSTGRES_URI || rawConfig.DATABASE_URL || '').startsWith('postgres') ? 'postgresql' : 'mongodb',
   jwt: {
     secret: rawConfig.JWT_SECRET,
     expiresIn: rawConfig.JWT_EXPIRES_IN,
+  },
+  smtp: {
+    host: rawConfig.SMTP_HOST,
+    port: rawConfig.SMTP_PORT,
+    user: rawConfig.SMTP_USER,
+    pass: rawConfig.SMTP_PASS,
+    from: rawConfig.SMTP_FROM,
+    isConfigured: Boolean(rawConfig.SMTP_USER && rawConfig.SMTP_PASS),
   },
 });
 

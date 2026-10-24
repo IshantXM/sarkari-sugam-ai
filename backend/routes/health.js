@@ -13,7 +13,8 @@ router.get('/', (req, res) => {
   const dbStatus = getDBStatus();
   res.json({
     ok: true,
-    mongodb: dbStatus,
+    database: dbStatus,
+    mongodb: dbStatus, // backward compatibility
     demo_mode: config.demoMode,
     tinyfish_configured: config.tinyfish.isConfigured,
     portal_credentials_configured: config.portal.isConfigured,

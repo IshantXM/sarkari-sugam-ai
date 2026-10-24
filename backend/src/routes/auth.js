@@ -4,6 +4,7 @@ import { z } from 'zod';
 import config from '../../config/env.js';
 import User from '../models/User.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { sendResetCodeEmail } from '../services/mailer.js';
 import logger from '../../utils/logger.js';
 
 const router = Router();
@@ -77,7 +78,7 @@ export async function seedDemoAccounts() {
   }
 }
 
-// POST /api/auth/register
+// POST /api/auth/register (Direct JWT authentication)
 router.post('/register', async (req, res, next) => {
   try {
     const parsed = registerSchema.safeParse(req.body);
@@ -192,7 +193,6 @@ router.get('/me', authenticateToken, async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) {
-      // Fallback to token payload if user record is cached
       return res.json({
         status: 'success',
         user: req.user,
@@ -201,6 +201,109 @@ router.get('/me', authenticateToken, async (req, res, next) => {
     res.json({
       status: 'success',
       user: user.toJSON(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// In-memory OTP code store for password resets (15 min TTL)
+const resetStore = new Map();
+
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'A valid email address is required.',
+      });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'No registered account was found with this email address.',
+      });
+    }
+
+    // Generate 6-digit OTP code (valid for 15 minutes)
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000;
+    resetStore.set(cleanEmail, { code, expiresAt });
+
+    logger.info(`[AUTH RESET] Password reset code generated for ${cleanEmail}: ${code}`);
+
+    // Send the email (via SMTP if configured, or via virtual test inbox)
+    const mailRes = await sendResetCodeEmail(cleanEmail, code);
+
+    res.json({
+      status: 'success',
+      message: mailRes.isRealSmtp
+        ? `Verification code dispatched to ${cleanEmail}. Please check your inbox.`
+        : `Verification code generated for ${cleanEmail}. Valid for 15 minutes.`,
+      devCode: code,
+      previewUrl: mailRes.previewUrl || null,
+      isRealSmtp: mailRes.isRealSmtp,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Email, verification code, and new password are required.',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'New password must be at least 6 characters.',
+      });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const record = resetStore.get(cleanEmail);
+
+    if (!record || record.expiresAt < Date.now()) {
+      resetStore.delete(cleanEmail);
+      return res.status(400).json({
+        status: 'error',
+        message: 'Verification code has expired or was not requested. Please request a new code.',
+      });
+    }
+
+    if (record.code !== code.toString().trim()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid verification code. Please check and try again.',
+      });
+    }
+
+    const updatedUser = await User.updatePassword(cleanEmail, newPassword);
+    if (!updatedUser) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User account could not be found.',
+      });
+    }
+
+    resetStore.delete(cleanEmail);
+    logger.info(`[AUTH RESET] Password successfully reset for user ${cleanEmail}`);
+
+    res.json({
+      status: 'success',
+      message: 'Password has been updated successfully. Please sign in with your new credentials.',
     });
   } catch (err) {
     next(err);

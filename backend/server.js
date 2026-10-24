@@ -7,6 +7,7 @@ import logger from './utils/logger.js';
 import healthRouter from './routes/health.js';
 import tendersRouter from './routes/tenders.js';
 import authRouter, { seedDemoAccounts } from './src/routes/auth.js';
+import databaseRouter from './src/routes/database.js';
 import { connectDB } from './src/db/connection.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
@@ -67,6 +68,7 @@ app.use((req, res, next) => {
 // Route Mounting
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/database', databaseRouter);
 app.use('/api/tenders', tendersRouter);
 
 // 404 Handler for undefined routes
@@ -88,7 +90,7 @@ async function startServer() {
         config.demoMode ? 'DEMO_MODE (seeded / resilient playback)' : 'LIVE_MODE (TinyFish Web API)'
       }`
     );
-    logger.info(`MongoDB Status: ${config.mongodbUri ? 'CONFIGURED (' + config.mongodbUri + ')' : 'NONE'}`);
+    logger.info(`Database: ${config.databaseType.toUpperCase()} (${config.databaseType === 'postgresql' ? 'Supabase' : 'MongoDB'})`);
     logger.info(`TinyFish Status: ${config.tinyfish.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Safe Demo)'}`);
     logger.info(
       `Portal Auth Status: ${config.portal.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Simulated Auth)'}`

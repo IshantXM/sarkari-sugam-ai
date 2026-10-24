@@ -1,14 +1,21 @@
 import mongoose from 'mongoose';
 import config from '../../config/env.js';
 import logger from '../../utils/logger.js';
+import { connectPostgres, getPostgresStatus } from './postgres.js';
 
 let isConnected = false;
 
 export async function connectDB() {
+  if (config.databaseType === 'postgresql') {
+    const ok = await connectPostgres();
+    isConnected = ok;
+    return ok;
+  }
+
   if (isConnected) return;
 
   try {
-    let cleanUri = config.mongodbUri;
+    let cleanUri = config.mongodbUri || 'mongodb://localhost:27017/Sarkari%20Sugam-AI';
     // MongoDB engine rejects spaces in database namespaces: sanitize '%20' or ' ' to '-'
     if (cleanUri.includes('%20') || cleanUri.includes(' ')) {
       cleanUri = cleanUri.replace(/%20/g, '-').replace(/ /g, '-');
@@ -36,13 +43,23 @@ export async function connectDB() {
 }
 
 export function getDBStatus() {
+  if (config.databaseType === 'postgresql') {
+    return getPostgresStatus();
+  }
+
   const readyStates = ['Disconnected', 'Connected', 'Connecting', 'Disconnecting'];
   const stateCode = mongoose.connection.readyState;
   return {
     connected: stateCode === 1,
+    type: 'mongodb',
     status: readyStates[stateCode] || 'Unknown',
     database: mongoose.connection.name || 'Sarkari Sugam-AI',
     host: mongoose.connection.host || 'localhost:27017',
-    uri: config.mongodbUri.replace(/(:\/\/)(.*@)/, '$1***@'), // hide credentials if any
+    uri: (config.mongodbUri || '').replace(/(:\/\/)(.*@)/, '$1***@'),
   };
 }
+
+export default {
+  connectDB,
+  getDBStatus,
+};

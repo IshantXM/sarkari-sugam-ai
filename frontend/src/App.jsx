@@ -74,8 +74,6 @@ function ActivityIcon() {
   );
 }
 
-
-
 export default function App() {
   const { user, token, logout } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -158,7 +156,7 @@ export default function App() {
         setSavedTenders(data.data);
       }
     } catch (err) {
-      console.warn('Could not fetch saved tenders from MongoDB:', err);
+      console.warn('Could not fetch saved tenders:', err);
     }
   }
 
@@ -497,10 +495,7 @@ export default function App() {
             >
               {user ? 'Switch Role' : 'Sign In'}
             </button>
-            <span className="tf-badge tf-badge-gray" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#059669', display: 'inline-block' }}></span>
-              MongoDB Synced
-            </span>
+            <span className="tf-badge tf-badge-gray">eprocure.gov.in Live Gateway</span>
             <span className="tf-badge tf-badge-emerald">System Online</span>
           </div>
         </div>
@@ -687,22 +682,11 @@ export default function App() {
                 <div className="tf-snapshot-row">
                   <div>
                     <div className="tf-snapshot-label">Monitored Tenders</div>
-                    <div className="tf-snapshot-sub">MongoDB Database Records</div>
+                    <div className="tf-snapshot-sub">Active Tracked Notices</div>
                   </div>
                   <div className="tf-snapshot-val" style={{ color: 'var(--tf-orange)' }}>
                     {savedTenders.length}
                   </div>
-                </div>
-
-                <div className="tf-snapshot-row">
-                  <div>
-                    <div className="tf-snapshot-label">MongoDB Database</div>
-                    <div className="tf-snapshot-sub">localhost:27017</div>
-                    <div style={{ fontSize: '11px', color: '#059669', fontWeight: '600', marginTop: '4px' }}>
-                      Sarkari-Sugam-AI
-                    </div>
-                  </div>
-                  <span className="tf-badge tf-badge-emerald">Connected</span>
                 </div>
               </div>
             </div>
@@ -1210,16 +1194,6 @@ export default function App() {
               </div>
 
               <div className="tf-field-box">
-                <div className="tf-field-key">MONGODB DATABASE</div>
-                <div className="tf-field-val" style={{ color: healthData?.mongodb?.connected ? '#059669' : '#dc2626' }}>
-                  {healthData?.mongodb?.connected ? 'Connected (Port 27017)' : 'Disconnected'}
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--tf-text-muted)', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>
-                  mongodb://localhost:27017/Sarkari%20Sugam-AI
-                </div>
-              </div>
-
-              <div className="tf-field-box">
                 <div className="tf-field-key">PORTAL AGENT ENGINE</div>
                 <div className="tf-field-val" style={{ color: healthData?.tinyfish_configured ? '#059669' : '#dc2626' }}>
                   {healthData?.tinyfish_configured ? 'Authenticated & Active' : 'Offline'}
@@ -1244,7 +1218,10 @@ export default function App() {
         )}
 
         {/* Auth Modal for Sign In / Register / Quick Demo */}
-        <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+        />
 
         {/* Optional Collapsed Developer Drawer */}
         <div style={{ marginTop: '40px', borderTop: '1px solid var(--tf-border)', paddingTop: '16px' }}>

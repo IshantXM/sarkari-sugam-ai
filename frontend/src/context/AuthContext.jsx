@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
           logout();
         }
       } catch {
-        // If offline or network error, keep cached token
+        // Keep cached session if offline
       } finally {
         setLoading(false);
       }
@@ -65,10 +65,36 @@ export function AuthProvider({ children }) {
       throw new Error(data.message || 'Registration failed');
     }
 
-    localStorage.setItem('ss_auth_token', data.token);
-    setToken(data.token);
-    setUser(data.user);
-    return data.user;
+    // Account created in database; return data without auto-login
+    return data;
+  }
+
+  async function forgotPassword(email) {
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to request reset code');
+    }
+    return data;
+  }
+
+  async function resetPassword({ email, code, newPassword }) {
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, newPassword }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to reset password');
+    }
+    return data;
   }
 
   function logout() {
@@ -78,7 +104,18 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        login,
+        register,
+        forgotPassword,
+        resetPassword,
+        logout,
+        loading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
