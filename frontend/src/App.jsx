@@ -132,7 +132,6 @@ export default function App() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setHealthData(data);
-      setLastRawResponse({ endpoint: 'GET /api/health', status: res.status, data });
     } catch (err) {
       console.warn('[HEALTH] Ping failed:', err.message);
       setHealthData({ ok: false, error: err.message });
