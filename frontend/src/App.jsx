@@ -43,17 +43,6 @@ function FetchIcon() {
   );
 }
 
-function AgentIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="11" width="18" height="10" rx="2" />
-      <circle cx="12" cy="5" r="2" />
-      <path d="M12 7v4" />
-      <line x1="8" y1="16" x2="8" y2="16" />
-      <line x1="16" y1="16" x2="16" y2="16" />
-    </svg>
-  );
-}
 
 function MonitorIcon() {
   return (
@@ -95,14 +84,6 @@ export default function App() {
   const [fetchData, setFetchData] = useState(null);
   const [fetchError, setFetchError] = useState(null);
 
-  // Agent State
-  const [agentUrl, setAgentUrl] = useState('https://eprocure.gov.in/eprocure/app');
-  const [agentTask, setAgentTask] = useState(
-    'Navigate active tenders, inspect open RFPs, and extract contract notices with IDs and deadlines.'
-  );
-  const [agentLoading, setAgentLoading] = useState(false);
-  const [agentResult, setAgentResult] = useState(null);
-  const [agentError, setAgentError] = useState(null);
 
   // Diff State
   const [diffTenderId, setDiffTenderId] = useState('TNDR-SWWYD8TQHQYENTNI');
@@ -131,19 +112,26 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    fetchHealth();
-  }, []);
-
-  async function fetchHealth() {
-    try {
-      const res = await fetch('/api/health');
-      const data = await res.json();
-      setHealthData(data);
-      setLastRawResponse({ endpoint: 'GET /api/health', status: res.status, data });
-    } catch {
-      setHealthData({ ok: false });
+    let ignore = false;
+    async function loadHealth() {
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        if (!ignore) {
+          setHealthData(data);
+          setLastRawResponse({ endpoint: 'GET /api/health', status: res.status, data });
+        }
+      } catch {
+        if (!ignore) {
+          setHealthData({ ok: false });
+        }
+      }
     }
-  }
+    loadHealth();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
 
 
@@ -222,38 +210,6 @@ export default function App() {
     }
   }
 
-  // Action: Agent
-  async function handleAgent(e) {
-    if (e) e.preventDefault();
-    if (!agentUrl.trim()) return;
-
-    setAgentLoading(true);
-    setAgentError(null);
-    setAgentResult(null);
-    const start = performance.now();
-
-    try {
-      const res = await fetch('/api/tenders/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: agentUrl, task: agentTask }),
-      });
-      const data = await res.json();
-      setLastRawResponse({
-        endpoint: 'POST /api/tenders/agent',
-        status: res.status,
-        durationMs: Math.round(performance.now() - start),
-        data,
-      });
-
-      if (!res.ok) throw new Error(data.message || 'Agent run failed');
-      setAgentResult(data);
-    } catch (err) {
-      setAgentError(err.message);
-    } finally {
-      setAgentLoading(false);
-    }
-  }
 
   // Action: Diff
   async function handleDiff(e) {
@@ -333,19 +289,6 @@ export default function App() {
           <div className="tf-nav-section">
             <div className="tf-nav-label">Playground</div>
 
-            <button
-              type="button"
-              className={`tf-nav-item ${activeTab === 'agent' ? 'active' : ''}`}
-              onClick={() => setActiveTab('agent')}
-            >
-              <div className="tf-nav-left">
-                <AgentIcon />
-                <span>Agent</span>
-              </div>
-              <span className="tf-badge tf-badge-orange" style={{ fontSize: '10px' }}>
-                Autonomous
-              </span>
-            </button>
 
             <button
               type="button"
@@ -428,7 +371,6 @@ export default function App() {
               {activeTab === 'home' && "Ishant's console"}
               {activeTab === 'search' && 'Search Playground'}
               {activeTab === 'fetch' && 'Structured Fetch Playground'}
-              {activeTab === 'agent' && 'Web Agent Playground'}
               {activeTab === 'diff' && 'Monitor & Corrigendum Watchdog'}
               {activeTab === 'health' && 'System Health & Metrics'}
             </h1>
@@ -510,29 +452,8 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Agent Card */}
-                <div className="tf-tool-card active-accent" onClick={() => setActiveTab('agent')}>
-                  <div>
-                    <div className="tf-tool-card-top">
-                      <div className="icon-box-pattern">
-                        <AgentIcon />
-                      </div>
-                      <span className="tf-badge tf-badge-orange">Autonomous</span>
-                    </div>
-                    <div className="tf-tool-card-title">Agent</div>
-                    <div className="tf-tool-card-desc">
-                      An autonomous agent that drives the browser through complex procurement portals.
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '16px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--tf-orange)' }}>
-                      Launch Agent &rarr;
-                    </span>
-                  </div>
-                </div>
-
                 {/* Monitor Card */}
-                <div className="tf-tool-card" onClick={() => setActiveTab('diff')}>
+                <div className="tf-tool-card active-accent" onClick={() => setActiveTab('diff')}>
                   <div>
                     <div className="tf-tool-card-top">
                       <div className="icon-box-pattern">
@@ -659,6 +580,16 @@ export default function App() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  <select
+                    className="tf-input"
+                    style={{ width: '120px' }}
+                    value={searchLimit}
+                    onChange={(e) => setSearchLimit(Number(e.target.value))}
+                  >
+                    <option value={5}>5 items</option>
+                    <option value={10}>10 items</option>
+                    <option value={20}>20 items</option>
+                  </select>
                   <button type="submit" className="tf-btn tf-btn-orange" disabled={searchLoading}>
                     {searchLoading ? 'Searching...' : 'Search'}
                   </button>
@@ -882,112 +813,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ----------------- VIEW 4: AGENT PLAYGROUND ----------------- */}
-        {activeTab === 'agent' && (
-          <div>
-            <div className="tf-panel">
-              <div className="tf-panel-header">
-                <div>
-                  <h2 className="tf-panel-title">Autonomous Web Execution Agent</h2>
-                  <div className="tf-panel-desc">
-                    Multi-step browser execution with automated login and navigation
-                  </div>
-                </div>
-                <span className="tf-badge tf-badge-gray">POST /api/tenders/agent</span>
-              </div>
-
-              <form onSubmit={handleAgent}>
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--tf-text-secondary)', marginBottom: '4px' }}>
-                    Target Portal URL
-                  </label>
-                  <input
-                    type="url"
-                    className="tf-input"
-                    value={agentUrl}
-                    onChange={(e) => setAgentUrl(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--tf-text-secondary)', marginBottom: '4px' }}>
-                    Goal Prompt
-                  </label>
-                  <textarea
-                    className="tf-input"
-                    rows={2}
-                    value={agentTask}
-                    onChange={(e) => setAgentTask(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="tf-chip-group">
-                  <span className="tf-chip-label">Goal Presets</span>
-                  <div className="tf-chip-list">
-                    {[
-                      'Navigate active tenders and extract open contracts with title, ID, and deadline',
-                      'Inspect tender documents and extract technical eligibility requirements',
-                      'Check for recent addendum or corrigendum uploads on the dashboard',
-                    ].map((p, i) => (
-                      <button key={i} type="button" className="tf-chip" onClick={() => setAgentTask(p)}>
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
-                  <button type="submit" className="tf-btn tf-btn-orange" disabled={agentLoading}>
-                    {agentLoading ? 'Executing Autonomous Steps...' : 'Launch Agent'}
-                  </button>
-                </div>
-              </form>
-
-              {agentError && (
-                <div style={{ marginTop: '12px', padding: '10px 14px', background: 'var(--tf-rose-light)', border: '1px solid var(--tf-rose-border)', borderRadius: '6px', color: '#991b1b', fontSize: '13px' }}>
-                  [Agent Error] {agentError}
-                </div>
-              )}
-            </div>
-
-            {/* Agent Steps & Extracted Data (NO RAW JSON!) */}
-            {agentResult && (
-              <div>
-                <div className="tf-section-title">Autonomous Execution Trace</div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                  <div className="tf-field-box">
-                    <div className="tf-field-key">TOTAL DURATION</div>
-                    <div className="tf-field-val" style={{ fontSize: '18px', color: 'var(--tf-orange)' }}>
-                      {(agentResult.duration_ms / 1000).toFixed(1)}s
-                    </div>
-                  </div>
-                  <div className="tf-field-box">
-                    <div className="tf-field-key">PAGES VISITED</div>
-                    <div className="tf-field-val" style={{ fontSize: '18px', color: '#059669' }}>
-                      {agentResult.pages_visited || agentResult.execution_steps?.length || 1}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="tf-contract-card">
-                  <div style={{ fontWeight: '600', marginBottom: '10px' }}>Recorded Step Execution</div>
-                  <div className="tf-step-list">
-                    {agentResult.execution_steps?.map((step, idx) => (
-                      <div key={idx} className="tf-step-item">
-                        <div className="tf-step-badge">{step.step || idx + 1}</div>
-                        <div style={{ flex: 1, fontWeight: '500' }}>{step.action}</div>
-                        <span className="tf-badge tf-badge-emerald">{step.status || 'DONE'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ----------------- VIEW 5: MONITOR & DIFF ----------------- */}
         {activeTab === 'diff' && (
@@ -1137,7 +962,7 @@ export default function App() {
               </div>
 
               <div className="tf-field-box">
-                <div className="tf-field-key">PORTAL AGENT ENGINE</div>
+                <div className="tf-field-key">TINYFISH WEB GATEWAY</div>
                 <div className="tf-field-val" style={{ color: healthData?.tinyfish_configured ? '#059669' : '#dc2626' }}>
                   {healthData?.tinyfish_configured ? 'Authenticated & Active' : 'Offline'}
                 </div>
