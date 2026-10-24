@@ -6,6 +6,8 @@ import config from './config/env.js';
 import logger from './utils/logger.js';
 import healthRouter from './routes/health.js';
 import tendersRouter from './routes/tenders.js';
+import authRouter, { seedDemoAccounts } from './src/routes/auth.js';
+import { connectDB } from './src/db/connection.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -64,6 +66,7 @@ app.use((req, res, next) => {
 
 // Route Mounting
 app.use('/api/health', healthRouter);
+app.use('/api/auth', authRouter);
 app.use('/api/tenders', tendersRouter);
 
 // 404 Handler for undefined routes
@@ -72,22 +75,31 @@ app.use(notFoundHandler);
 // Central Error Handler (never leaks secrets or stack traces)
 app.use(errorHandler);
 
-// Start Server
-const server = app.listen(config.port, () => {
-  logger.info(`=======================================================`);
-  logger.info(`Sarkari Sugam AI Backend running on port ${config.port}`);
-  logger.info(
-    `Active Mode: ${
-      config.demoMode ? 'DEMO_MODE (seeded / resilient playback)' : 'LIVE_MODE (TinyFish Web API)'
-    }`
-  );
-  logger.info(`TinyFish Status: ${config.tinyfish.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Safe Demo)'}`);
-  logger.info(
-    `Portal Auth Status: ${config.portal.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Simulated Auth)'}`
-  );
-  logger.info(`Alert Delivery: ${config.isSlackConfigured ? 'SLACK LIVE' : 'SIMULATED MODE'}`);
-  logger.info(`=======================================================`);
-});
+// Connect to MongoDB and start server
+async function startServer() {
+  await connectDB();
+  await seedDemoAccounts();
+
+  server = app.listen(config.port, () => {
+    logger.info(`=======================================================`);
+    logger.info(`Sarkari Sugam AI Backend running on port ${config.port}`);
+    logger.info(
+      `Active Mode: ${
+        config.demoMode ? 'DEMO_MODE (seeded / resilient playback)' : 'LIVE_MODE (TinyFish Web API)'
+      }`
+    );
+    logger.info(`MongoDB Status: ${config.mongodbUri ? 'CONFIGURED (' + config.mongodbUri + ')' : 'NONE'}`);
+    logger.info(`TinyFish Status: ${config.tinyfish.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Safe Demo)'}`);
+    logger.info(
+      `Portal Auth Status: ${config.portal.isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED (Simulated Auth)'}`
+    );
+    logger.info(`Alert Delivery: ${config.isSlackConfigured ? 'SLACK LIVE' : 'SIMULATED MODE'}`);
+    logger.info(`=======================================================`);
+  });
+}
+
+let server;
+startServer();
 
 // Graceful Shutdown on SIGINT and SIGTERM
 function handleShutdown(signal) {

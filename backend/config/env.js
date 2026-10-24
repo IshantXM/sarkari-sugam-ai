@@ -22,6 +22,9 @@ const envSchema = z.object({
   SLACK_WEBHOOK_URL: z.string().optional().default(''),
   COST_PER_1K_TOKENS_RAW: z.coerce.number().default(0.0015),
   COST_PER_1K_TOKENS_PRUNED: z.coerce.number().default(0.002),
+  MONGODB_URI: z.string().default('mongodb://localhost:27017/Sarkari%20Sugam-AI'),
+  JWT_SECRET: z.string().default('sarkari_sugam_ai_hackiiitd_secret_token_2026'),
+  JWT_EXPIRES_IN: z.string().default('24h'),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -67,6 +70,11 @@ export const config = Object.freeze({
   costs: {
     rawPer1k: rawConfig.COST_PER_1K_TOKENS_RAW,
     prunedPer1k: rawConfig.COST_PER_1K_TOKENS_PRUNED,
+  },
+  mongodbUri: rawConfig.MONGODB_URI,
+  jwt: {
+    secret: rawConfig.JWT_SECRET,
+    expiresIn: rawConfig.JWT_EXPIRES_IN,
   },
 });
 
