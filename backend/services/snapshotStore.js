@@ -1,14 +1,6 @@
-import { seedTenders } from '../data/seed.js';
-
 class SnapshotStore {
   constructor() {
     this.store = new Map();
-    // Seed the store with initial mock baselines
-    for (const tender of seedTenders) {
-      if (tender.tender_id) {
-        this.store.set(tender.tender_id, { ...tender, updated_at: new Date().toISOString() });
-      }
-    }
   }
 
   save(tender) {
@@ -34,11 +26,6 @@ class SnapshotStore {
 
   reset() {
     this.store.clear();
-    for (const tender of seedTenders) {
-      if (tender.tender_id) {
-        this.store.set(tender.tender_id, { ...tender, updated_at: new Date().toISOString() });
-      }
-    }
   }
 }
 
