@@ -32,6 +32,7 @@ const envSchema = z.object({
   SMTP_FROM: z.string().optional().default(''),
   JWT_SECRET: z.string().default('sarkari_sugam_ai_hackiiitd_secret_token_2026'),
   JWT_EXPIRES_IN: z.string().default('24h'),
+  GEMINI_API_KEY: z.string().optional().default(''),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -93,6 +94,10 @@ export const config = Object.freeze({
     pass: rawConfig.SMTP_PASS,
     from: rawConfig.SMTP_FROM,
     isConfigured: Boolean(rawConfig.SMTP_USER && rawConfig.SMTP_PASS),
+  },
+  gemini: {
+    apiKey: rawConfig.GEMINI_API_KEY,
+    isConfigured: Boolean(rawConfig.GEMINI_API_KEY && rawConfig.GEMINI_API_KEY.length > 5),
   },
 });
 

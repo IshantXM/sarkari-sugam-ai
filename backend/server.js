@@ -42,8 +42,8 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Security: JSON body size limit (100kb max)
-app.use(express.json({ limit: '100kb' }));
+// Security: JSON body size limit (10mb to accommodate scanned image base64 payloads)
+app.use(express.json({ limit: '10mb' }));
 
 // Request ID and Request Logging Middleware
 app.use((req, res, next) => {
@@ -84,9 +84,12 @@ async function startServer() {
   await connectDB();
   await seedDemoAccounts();
 
-  server = app.listen(config.port, () => {
+  const primaryPort = config.port || 5000;
+  const secondaryPort = Number(primaryPort) === 5000 ? 5005 : 5000;
+
+  server = app.listen(primaryPort, () => {
     logger.info(`=======================================================`);
-    logger.info(`Sarkari Sugam AI Backend running on port ${config.port}`);
+    logger.info(`Sarkari Sugam AI Backend running on primary port ${primaryPort}`);
     logger.info(
       `Active Mode: ${
         config.demoMode ? 'DEMO_MODE (seeded / resilient playback)' : 'LIVE_MODE (TinyFish Web API)'
@@ -114,24 +117,77 @@ async function startServer() {
       }
     }, WATCHDOG_INTERVAL_MS).unref();
   });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      logger.error(`[SYSTEM] Port ${primaryPort} is already in use by another process.`);
+      process.exit(1);
+    } else {
+      logger.error(`[SYSTEM] Server runtime error:`, err);
+    }
+  });
+
+  // Dual-port compatibility listener: bind secondary port (e.g. 5005) so any client/proxy targeting 5005 or 5000 connects instantly
+  try {
+    bridgeServer = app.listen(secondaryPort, () => {
+      logger.info(`[SYSTEM] Compatibility bridge active on port ${secondaryPort} (both 5000 & 5005 reachable)`);
+    });
+    bridgeServer.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        logger.warn(`[SYSTEM] Port ${secondaryPort} is in use; primary port ${primaryPort} remains fully active.`);
+      } else {
+        logger.warn(`[SYSTEM] Bridge port ${secondaryPort} error: ${err.message}`);
+      }
+    });
+  } catch (err) {
+    logger.warn(`[SYSTEM] Failed to start compatibility bridge on ${secondaryPort}: ${err.message}`);
+  }
 }
 
 let server;
+let bridgeServer;
 startServer();
 
+// Nodemon graceful reload
+process.once('SIGUSR2', () => {
+  const closePromises = [];
+  if (server && server.listening) {
+    closePromises.push(new Promise((resolve) => server.close(resolve)));
+  }
+  if (bridgeServer && bridgeServer.listening) {
+    closePromises.push(new Promise((resolve) => bridgeServer.close(resolve)));
+  }
+  Promise.all(closePromises).then(() => {
+    process.kill(process.pid, 'SIGUSR2');
+  }).catch(() => {
+    process.kill(process.pid, 'SIGUSR2');
+  });
+});
+
 // Graceful Shutdown on SIGINT and SIGTERM
+let isShuttingDown = false;
 function handleShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
   logger.info(`[SYSTEM] Received ${signal}. Initiating graceful shutdown...`);
-  server.close(() => {
+  const closePromises = [];
+  if (server && server.listening) {
+    closePromises.push(new Promise((resolve) => server.close(resolve)));
+  }
+  if (bridgeServer && bridgeServer.listening) {
+    closePromises.push(new Promise((resolve) => bridgeServer.close(resolve)));
+  }
+  Promise.all(closePromises).then(() => {
     logger.info('[SYSTEM] HTTP server connections closed. Process terminating safely.');
+    process.exit(0);
+  }).catch(() => {
     process.exit(0);
   });
 
-  // Force termination if hanging after 5 seconds
+  // Force termination if hanging after 3 seconds
   setTimeout(() => {
-    logger.error('[SYSTEM] Graceful shutdown timeout expired. Forcing exit.');
-    process.exit(1);
-  }, 5000).unref();
+    process.exit(0);
+  }, 3000).unref();
 }
 
 process.on('SIGINT', () => handleShutdown('SIGINT'));
