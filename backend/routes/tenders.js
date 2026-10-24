@@ -11,7 +11,6 @@ import tokensUtil from '../utils/tokens.js';
 import {
   seedTenders,
   seedSearchResults,
-  seedTelemetry,
   seedMarkdown,
   seedAgentSteps,
   seedUpdatedTender,
@@ -160,7 +159,6 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
       status: 'success',
       source: 'cached_demo',
       data: tender,
-      telemetry: seedTelemetry,
       markdown_preview: seedMarkdown.slice(0, 500),
       request_id: requestId,
       timestamp,
@@ -170,17 +168,11 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
   // 2. Live TinyFish Execution with Fallback
   try {
     logger.info(`[FETCH:LIVE] Fetching clean markdown via TinyFish for url="${url}"`);
-    const { markdown, rawContent, latencyMs } = await tinyfish.fetchPage({ url });
+    const { markdown } = await tinyfish.fetchPage({ url });
 
     if (!markdown || markdown.trim().length === 0) {
       throw new Error('TinyFish Fetch returned empty markdown');
     }
-
-    // Compute token telemetry and cost savings
-    // If rawContent HTML is not returned by TinyFish, modern government portals have approx 29x raw markup overhead
-    const rawChars = rawContent && rawContent.length > 0 ? rawContent.length : markdown.length * 29;
-    const prunedChars = markdown.length;
-    const telemetry = tokensUtil.calculateTelemetry(rawChars, prunedChars, latencyMs);
 
     // Extract structured procurement fields via regex and heuristics
     const extractedData = extractor.extractTenderFromMarkdown(markdown, url);
@@ -194,7 +186,6 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
       status: 'success',
       source: 'tinyfish_live',
       data: extractedData,
-      telemetry,
       markdown_preview: markdown.slice(0, 500),
       request_id: requestId,
       timestamp,
@@ -212,7 +203,6 @@ router.post('/fetch', validateBody(fetchBodySchema), async (req, res, next) => {
       source: 'fallback_demo',
       fallback_reason: 'Live page extraction timed out or failed; served cached portal tender',
       data: fallbackTender,
-      telemetry: seedTelemetry,
       markdown_preview: seedMarkdown.slice(0, 500),
       request_id: requestId,
       timestamp,

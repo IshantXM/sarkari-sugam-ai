@@ -1,6 +1,6 @@
 # Sarkari Sugam AI — Demo Mode Endpoint cURL Verification
 
-**Test Timestamp:** 2026-10-24T07:18:18.467Z
+**Test Timestamp:** 2026-10-24T09:00:49.315Z
 **Environment:** DEMO_MODE=true
 
 ---
@@ -20,10 +20,10 @@ curl.exe -s http://localhost:5000/api/health
   "tinyfish_configured": true,
   "portal_credentials_configured": false,
   "slack_configured": false,
-  "uptime_seconds": 105,
+  "uptime_seconds": 20,
   "version": "1.0.0",
-  "request_id": "req_t7l3l1g7",
-  "timestamp": "2026-10-24T07:18:18.565Z"
+  "request_id": "req_4q0c67fp",
+  "timestamp": "2026-10-24T09:00:49.413Z"
 }
 ```
 
@@ -57,8 +57,8 @@ curl.exe -s -X POST http://localhost:5000/api/tenders/search -H "Content-Type: a
       "domain": "cityhub.gov"
     }
   ],
-  "request_id": "req_v3yd12c7",
-  "timestamp": "2026-10-24T07:18:18.631Z"
+  "request_id": "req_9ugfvdho",
+  "timestamp": "2026-10-24T09:00:49.511Z"
 }
 ```
 
@@ -86,18 +86,9 @@ curl.exe -s -X POST http://localhost:5000/api/tenders/fetch -H "Content-Type: ap
     "source_url": "https://stateprocure.gov/tenders/cloud-infra-2026",
     "extraction_confidence": 1
   },
-  "telemetry": {
-    "raw_tokens": 42840,
-    "pruned_tokens": 1450,
-    "compression_ratio": "96.6%",
-    "latency_ms": 342,
-    "cost_usd_raw": 0.06426,
-    "cost_usd_pruned": 0.0029,
-    "savings_usd": 0.06136
-  },
   "markdown_preview": "# STATE PROCUREMENT PORTAL - NOTICE INVITING TENDER (NIT)\n\n## Tender Overview\n* **Tender No / Reference:** STATE-IT-2026-0417\n* **Issuing Agency / Department:** State IT Department\n* **Project Name:** State Cloud Infrastructure Modernization & Hybrid Cloud Deployment\n* **Estimated Cost / Budget:** $85,000 USD (INR 70.8 Lakhs Approx)\n* **Closing Date / Last Date of Submission:** 2026-11-14 17:00 IST\n* **Bid Opening Date:** 2026-11-15 11:00 IST\n\n## Minimum Eligibility Criteria\n1. The bidder must p",
-  "request_id": "req_a4tujv7c",
-  "timestamp": "2026-10-24T07:18:18.700Z"
+  "request_id": "req_6fdu2ubv",
+  "timestamp": "2026-10-24T09:00:49.605Z"
 }
 ```
 
@@ -167,8 +158,8 @@ curl.exe -s -X POST http://localhost:5000/api/tenders/agent -H "Content-Type: ap
   ],
   "pages_visited": 2,
   "duration_ms": 1240,
-  "request_id": "req_32ifn0nt",
-  "timestamp": "2026-10-24T07:18:18.837Z"
+  "request_id": "req_05zf12wb",
+  "timestamp": "2026-10-24T09:00:49.679Z"
 }
 ```
 
@@ -209,8 +200,8 @@ curl.exe -s -X POST http://localhost:5000/api/tenders/diff -H "Content-Type: app
     "mode": "simulated",
     "error": null
   },
-  "request_id": "req_e7m635ox",
-  "timestamp": "2026-10-24T07:18:18.896Z"
+  "request_id": "req_zlrbjp7k",
+  "timestamp": "2026-10-24T09:00:49.756Z"
 }
 ```
 

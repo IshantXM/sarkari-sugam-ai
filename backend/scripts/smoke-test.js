@@ -12,16 +12,16 @@ let totalFailed = 0;
 function logResult(name, passed, details = '') {
   if (passed) {
     totalPassed++;
-    console.log(`  \x1b[32m✔ PASS\x1b[0m: ${name} ${details}`);
+    console.log(`  \x1b[32m[PASS]\x1b[0m: ${name} ${details}`);
   } else {
     totalFailed++;
-    console.error(`  \x1b[31m✖ FAIL\x1b[0m: ${name} ${details}`);
+    console.error(`  \x1b[31m[FAIL]\x1b[0m: ${name} ${details}`);
   }
 }
 
 async function runSmokeTests() {
   console.log(`\n=======================================================`);
-  console.log(`🧪 Running Sarkari Sugam AI Smoke Tests against ${BASE_URL}`);
+  console.log(`Running Sarkari Sugam AI Smoke Tests against ${BASE_URL}`);
   console.log(`=======================================================\n`);
 
   const client = axios.create({
@@ -74,12 +74,11 @@ async function runSmokeTests() {
       res.status === 200 &&
       res.data?.status === 'success' &&
       res.data?.data?.tender_id === 'STATE-IT-2026-0417' &&
-      res.data?.telemetry?.compression_ratio === '96.6%' &&
       Boolean(res.data?.markdown_preview);
     logResult(
       'POST /api/tenders/fetch',
       valid,
-      `(Status: ${res.status}, Ratio: ${res.data?.telemetry?.compression_ratio}, ID: ${res.data?.data?.tender_id})`
+      `(Status: ${res.status}, ID: ${res.data?.data?.tender_id})`
     );
   } catch (err) {
     logResult('POST /api/tenders/fetch', false, `(Error: ${err.message})`);
@@ -176,7 +175,7 @@ async function runSmokeTests() {
   }
 
   console.log(`\n=======================================================`);
-  console.log(`📊 Smoke Test Summary: ${totalPassed} Passed, ${totalFailed} Failed`);
+  console.log(`Smoke Test Summary: ${totalPassed} Passed, ${totalFailed} Failed`);
   console.log(`=======================================================\n`);
 
   if (totalFailed > 0) {
