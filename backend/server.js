@@ -114,24 +114,50 @@ async function startServer() {
       }
     }, WATCHDOG_INTERVAL_MS).unref();
   });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      logger.error(`[SYSTEM] Port ${config.port} is already in use by another process.`);
+      process.exit(1);
+    } else {
+      logger.error(`[SYSTEM] Server runtime error:`, err);
+    }
+  });
 }
 
 let server;
 startServer();
 
-// Graceful Shutdown on SIGINT and SIGTERM
-function handleShutdown(signal) {
-  logger.info(`[SYSTEM] Received ${signal}. Initiating graceful shutdown...`);
-  server.close(() => {
-    logger.info('[SYSTEM] HTTP server connections closed. Process terminating safely.');
-    process.exit(0);
-  });
+// Nodemon graceful reload
+process.once('SIGUSR2', () => {
+  if (server && server.listening) {
+    server.close(() => {
+      process.kill(process.pid, 'SIGUSR2');
+    });
+  } else {
+    process.kill(process.pid, 'SIGUSR2');
+  }
+});
 
-  // Force termination if hanging after 5 seconds
+// Graceful Shutdown on SIGINT and SIGTERM
+let isShuttingDown = false;
+function handleShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger.info(`[SYSTEM] Received ${signal}. Initiating graceful shutdown...`);
+  if (server && server.listening) {
+    server.close(() => {
+      logger.info('[SYSTEM] HTTP server connections closed. Process terminating safely.');
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
+
+  // Force termination if hanging after 3 seconds
   setTimeout(() => {
-    logger.error('[SYSTEM] Graceful shutdown timeout expired. Forcing exit.');
-    process.exit(1);
-  }, 5000).unref();
+    process.exit(0);
+  }, 3000).unref();
 }
 
 process.on('SIGINT', () => handleShutdown('SIGINT'));
