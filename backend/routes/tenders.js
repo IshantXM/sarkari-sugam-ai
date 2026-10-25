@@ -385,8 +385,7 @@ router.post('/diff', validateBody(diffBodySchema), async (req, res, next) => {
         return null;
       })();
 
-      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 12000));
-      latestData = await Promise.race([livePromise, timeoutPromise]);
+      latestData = await livePromise;
     }
 
     if (!latestData) {

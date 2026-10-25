@@ -105,7 +105,6 @@ export async function fetchPage({ url }) {
           'X-API-Key': config.tinyfish.apiKey,
           'Content-Type': 'application/json',
         },
-        timeout: 20000,
       }
     );
 
@@ -152,7 +151,6 @@ export async function runAgent({ url, goal }) {
           'X-API-Key': config.tinyfish.apiKey,
           'Content-Type': 'application/json',
         },
-        timeout: 90000,
       }
     );
 
@@ -162,7 +160,7 @@ export async function runAgent({ url, goal }) {
     if (runData?.run_id && runData.status && runData.status !== 'COMPLETED' && runData.status !== 'FAILED') {
       const runId = runData.run_id;
       const pollStart = Date.now();
-      const maxPollTimeMs = 90000;
+      const maxPollTimeMs = 120000;
 
       while (Date.now() - pollStart < maxPollTimeMs) {
         await new Promise((r) => setTimeout(r, 2000));
@@ -171,7 +169,6 @@ export async function runAgent({ url, goal }) {
           headers: {
             'X-API-Key': config.tinyfish.apiKey,
           },
-          timeout: 10000,
         });
 
         const pollStatus = pollResponse.data?.status;
@@ -321,16 +318,12 @@ export async function fetchStructuredTender({ url }) {
         goal,
         output_schema: TENDER_OUTPUT_SCHEMA,
         proxy_config: proxyConfig,
-        agent_config: {
-          max_duration_seconds: 25,
-        },
       },
       {
         headers: {
           'X-API-Key': config.tinyfish.apiKey,
           'Content-Type': 'application/json',
         },
-        timeout: 25000,
       }
     );
 
@@ -340,7 +333,7 @@ export async function fetchStructuredTender({ url }) {
     if (runData?.run_id && runData.status && runData.status !== 'COMPLETED' && runData.status !== 'FAILED') {
       const runId = runData.run_id;
       const pollStart = Date.now();
-      const maxPollTimeMs = 25000;
+      const maxPollTimeMs = 120000;
 
       while (Date.now() - pollStart < maxPollTimeMs) {
         await new Promise((r) => setTimeout(r, 2000));
@@ -349,7 +342,6 @@ export async function fetchStructuredTender({ url }) {
           headers: {
             'X-API-Key': config.tinyfish.apiKey,
           },
-          timeout: 10000,
         });
 
         const pollStatus = pollResponse.data?.status;
