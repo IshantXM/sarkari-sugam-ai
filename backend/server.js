@@ -14,13 +14,41 @@ import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
-// Security: Helmet HTTP headers
-app.use(helmet());
+// Security: Helmet HTTP headers (configured for cross-origin API clients)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
-// Security: Restricted CORS
+// Security: Dynamic Robust CORS
+const rawOrigins = (config.corsOrigin || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: config.corsOrigin === '*' ? true : config.corsOrigin,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const cleanOrigin = origin.replace(/\/+$/, '');
+      const isAllowed =
+        config.corsOrigin === '*' ||
+        rawOrigins.some((ro) => ro.replace(/\/+$/, '') === cleanOrigin) ||
+        cleanOrigin.endsWith('.vercel.app') ||
+        cleanOrigin.includes('localhost') ||
+        cleanOrigin.includes('127.0.0.1');
+
+      if (isAllowed) {
+        // Echo back the exact incoming origin to satisfy browser strict origin equality
+        return callback(null, origin);
+      }
+
+      logger.warn(`[CORS] Rejected request from unauthorized origin: ${origin}`);
+      return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    },
     credentials: true,
   })
 );

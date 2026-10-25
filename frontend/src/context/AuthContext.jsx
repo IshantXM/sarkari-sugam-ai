@@ -2,6 +2,22 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
 
+export const API_BASE_URL = (
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' &&
+  (window.location.hostname.includes('vercel.app') ||
+    (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'))
+    ? 'https://sarkari-sugam-ai.onrender.com'
+    : '')
+).replace(/\/+$/, '');
+
+export function apiUrl(path) {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_BASE_URL}${cleanPath}`;
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('ss_auth_token') || null);
@@ -16,7 +32,7 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const res = await fetch('/api/auth/me', {
+        const res = await fetch(apiUrl('/api/auth/me'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -40,7 +56,7 @@ export function AuthProvider({ children }) {
     const currentToken = token || localStorage.getItem('ss_auth_token');
     if (currentToken) {
       try {
-        await fetch('/api/auth/logout', {
+        await fetch(apiUrl('/api/auth/logout'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -58,13 +74,14 @@ export function AuthProvider({ children }) {
 
   // Centralized authenticated fetch: automatically attaches JWT and handles 401 token invalidation
   async function authFetch(url, options = {}) {
+    const fullUrl = apiUrl(url);
     const currentToken = token || localStorage.getItem('ss_auth_token');
     const headers = {
       ...(options.headers || {}),
       ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
     };
 
-    const res = await fetch(url, { ...options, headers });
+    const res = await fetch(fullUrl, { ...options, headers });
     if (res.status === 401) {
       await logout();
       throw new Error('Your session has expired or is unauthorized. Please sign in again.');
@@ -73,7 +90,7 @@ export function AuthProvider({ children }) {
   }
 
   async function login(email, password) {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(apiUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -91,7 +108,7 @@ export function AuthProvider({ children }) {
   }
 
   async function register(userData) {
-    const res = await fetch('/api/auth/register', {
+    const res = await fetch(apiUrl('/api/auth/register'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData),
@@ -112,7 +129,7 @@ export function AuthProvider({ children }) {
   }
 
   async function forgotPassword(email) {
-    const res = await fetch('/api/auth/forgot-password', {
+    const res = await fetch(apiUrl('/api/auth/forgot-password'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -126,7 +143,7 @@ export function AuthProvider({ children }) {
   }
 
   async function resetPassword({ email, code, newPassword }) {
-    const res = await fetch('/api/auth/reset-password', {
+    const res = await fetch(apiUrl('/api/auth/reset-password'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, code, newPassword }),
