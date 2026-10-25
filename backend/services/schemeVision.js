@@ -75,7 +75,7 @@ export async function parseSchemeImage({ base64Data, imageUrl, mimeType = 'image
   // 2. Check if Gemini API key is configured
   const apiKey = config.gemini.apiKey;
   if (!apiKey || !config.gemini.isConfigured) {
-    return generateFallbackNotice('Gemini API key is not configured. Running in resilient simulation mode.');
+    throw new Error('Gemini API key is not configured for scheme vision analysis.');
   }
 
   const prompt = `
@@ -143,32 +143,8 @@ Important Instructions:
   } catch (err) {
     const errorDetails = err.response?.data?.error?.message || err.message;
     console.error('[SCHEME_VISION] Gemini Vision call failed:', errorDetails);
-    
-    // Fallback if rate-limited or transient failure
-    return generateFallbackNotice(`Vision extraction encountered: ${errorDetails}`);
+    throw new Error(`Vision extraction failed: ${errorDetails}`);
   }
-}
-
-/**
- * Resilient fallback generator when API is offline or during testing
- */
-function generateFallbackNotice(reason) {
-  return {
-    tender_id: 'SCHEME-CIRCULAR-2026-DEMO',
-    title: 'Pradhan Mantri Krishi Vikas & Solar Pump Subsidy Scheme',
-    issuing_agency: 'Ministry of Agriculture & Farmers Welfare, Govt of India',
-    budget_usd: 145000,
-    budget_inr: '₹1.25 Crore',
-    submission_deadline: '2026-11-30T17:00:00Z',
-    eligibility: 'Marginal and small farmers with valid land records; annual family income < ₹3,00,000.',
-    benefits_summary: '60% capital subsidy on 5HP solar water pumping systems and zero-interest micro-credit.',
-    required_documents: ['Aadhaar Card', 'Khasra/Khatauni Land Record', 'Bank Passbook', 'Caste Certificate (if applicable)'],
-    application_steps: 'Apply online through state agriculture portal or submit hardcopy at District Agriculture Office.',
-    corrigendum_detected: false,
-    detected_language: 'Bilingual (Hindi/English)',
-    extraction_confidence: 0.92,
-    raw_summary: `[DEMO FALLBACK] ${reason}`,
-  };
 }
 
 export default { parseSchemeImage, parsedSchemeNoticeSchema };

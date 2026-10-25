@@ -259,8 +259,6 @@ export default function LoginPage({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
-  const [role, setRole] = useState('PROCUREMENT_OFFICER');
-  const [department, setDepartment] = useState('MoRTH National Highways Division');
   const [rememberMe, setRememberMe] = useState(true);
 
   // Forgot password specific states
@@ -268,7 +266,6 @@ export default function LoginPage({
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [devCode, setDevCode] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
   const [loading, setLoading] = useState(false);
@@ -281,12 +278,9 @@ export default function LoginPage({
     setEmail('');
     setPassword('');
     setName('');
-    setRole('PROCUREMENT_OFFICER');
-    setDepartment('MoRTH National Highways Division');
     setResetCode('');
     setNewPassword('');
     setConfirmPassword('');
-    setDevCode(null);
     setPreviewUrl(null);
     setForgotStep('request');
     setError(null);
@@ -306,7 +300,7 @@ export default function LoginPage({
 
     try {
       if (tab === 'register') {
-        await register({ name, email, password, role, department });
+        await register({ name, email, password });
         resetForm();
         setTab('signin');
         setSuccessMsg('Registration successful! Please sign in with your email and password.');
@@ -317,9 +311,6 @@ export default function LoginPage({
         if (forgotStep === 'request') {
           const res = await forgotPassword(email);
           setForgotStep('verify');
-          if (res.devCode) {
-            setDevCode(res.devCode);
-          }
           if (res.previewUrl) {
             setPreviewUrl(res.previewUrl);
           }
@@ -341,19 +332,7 @@ export default function LoginPage({
     }
   }
 
-  async function handleDemoLogin(demoEmail, demoPass) {
-    setError(null);
-    setSuccessMsg(null);
-    setLoading(true);
-    try {
-      await login(demoEmail, demoPass);
-      handleClose();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+
 
   return (
     <div className={`tf-login-split-page ${embedded ? 'embedded' : ''}`}>
@@ -400,42 +379,7 @@ export default function LoginPage({
               : 'Please enter your details'}
           </p>
 
-          {/* Quick 1-Click Demo Login Bar for Judges (Only in signin tab) */}
-          {tab === 'signin' && (
-            <div className="tf-login-demo-bar">
-              <div className="tf-login-demo-header">
-                <span className="tf-login-demo-label">
-                  <span>⚡</span> 1-Click Demo Logins for Judges
-                </span>
-                <span className="tf-login-demo-hint">Instant Access</span>
-              </div>
-              <div className="tf-login-demo-grid">
-                <button
-                  type="button"
-                  className="tf-login-demo-pill officer"
-                  onClick={() => handleDemoLogin('ishantmohan045@gmail.com', 'sugam123')}
-                  disabled={loading}
-                >
-                  <span className="tf-login-demo-pill-title">
-                    <span>👔</span> Officer Ishant
-                  </span>
-                  <span className="tf-login-demo-pill-role">Procurement Authority</span>
-                </button>
 
-                <button
-                  type="button"
-                  className="tf-login-demo-pill vendor"
-                  onClick={() => handleDemoLogin('vendor@infra-bidder.in', 'sugam123')}
-                  disabled={loading}
-                >
-                  <span className="tf-login-demo-pill-title">
-                    <span>🏗️</span> EPC Consortium
-                  </span>
-                  <span className="tf-login-demo-pill-role">Verified Bidder</span>
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="tf-login-form">
@@ -495,74 +439,27 @@ export default function LoginPage({
               </div>
             )}
 
-            {/* REGISTER MODE: Role & Department */}
-            {tab === 'register' && (
-              <>
-                <div className="tf-login-field-group">
-                  <label className="tf-login-label">Portal Role</label>
-                  <select
-                    className="tf-login-input"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                  >
-                    <option value="PROCUREMENT_OFFICER">Procurement Officer (Govt)</option>
-                    <option value="BIDDER_VENDOR">Verified Bidder / Contractor</option>
-                    <option value="AUDITOR">Public Oversight Auditor</option>
-                  </select>
-                </div>
 
-                <div className="tf-login-field-group">
-                  <label className="tf-login-label">Department / Organization</label>
-                  <input
-                    type="text"
-                    className="tf-login-input"
-                    placeholder="e.g. MoRTH / CPWD / NHAI"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                  />
-                </div>
-              </>
-            )}
 
             {/* FORGOT PASSWORD STEP 2: Verification Code & New Password */}
             {tab === 'forgot' && forgotStep === 'verify' && (
               <>
-                {devCode && (
+                {previewUrl && (
                   <div style={{ marginBottom: '8px' }}>
-                    <button
-                      type="button"
-                      className="tf-link-btn"
+                    <a
+                      href={previewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       style={{
-                        fontSize: '12px',
-                        background: 'var(--tf-orange-light)',
-                        border: '1px solid var(--tf-orange-border)',
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        color: 'var(--tf-orange)',
-                        fontWeight: '600',
-                        width: '100%',
-                        textAlign: 'left',
+                        display: 'block',
+                        fontSize: '11px',
+                        color: 'var(--tf-blue)',
+                        marginTop: '4px',
+                        textDecoration: 'none',
                       }}
-                      onClick={() => setResetCode(devCode)}
                     >
-                      ⚡ Demo Auto-fill Code: <strong>{devCode}</strong>
-                    </button>
-                    {previewUrl && (
-                      <a
-                        href={previewUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'block',
-                          fontSize: '11px',
-                          color: 'var(--tf-blue)',
-                          marginTop: '4px',
-                          textDecoration: 'none',
-                        }}
-                      >
-                        📧 View dispatched test email &rarr;
-                      </a>
-                    )}
+                      📧 View dispatched test email &rarr;
+                    </a>
                   </div>
                 )}
 

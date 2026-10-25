@@ -19,7 +19,7 @@ const tenderSchema = new mongoose.Schema(
       enum: ['MONITORED', 'MUTATION_DETECTED', 'ARCHIVED'],
       default: 'MONITORED',
     },
-    saved_by: { type: String, default: 'ishantmohan045@gmail.com' },
+    saved_by: { type: String, default: null },
     history: [
       {
         detected_at: { type: Date, default: Date.now },
@@ -192,7 +192,7 @@ export const Tender = {
           data.source_url || '',
           data.extraction_confidence || 0.85,
           data.status || 'MONITORED',
-          data.saved_by || 'ishantmohan045@gmail.com',
+          data.saved_by || null,
           JSON.stringify(data.history || []),
         ]
       );
