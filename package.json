@@ -1,0 +1,25 @@
+{
+  "name": "sarkari-sugam-ai",
+  "version": "1.0.0",
+  "description": "Sarkari Sugam AI - National Public Procurement Intelligence & Corrigendum Radar",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node start-dev.js",
+    "start": "node start-dev.js",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:concurrently": "npx --yes concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "build": "npm run build --prefix frontend",
+    "test:smoke": "npm run test:smoke --prefix backend"
+  },
+  "keywords": [
+    "sarkari-sugam-ai",
+    "procurement",
+    "tenders",
+    "tinyfish",
+    "corrigendum"
+  ],
+  "author": "Ishant Mohan",
+  "license": "ISC"
+}

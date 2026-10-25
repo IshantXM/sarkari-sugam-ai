@@ -386,16 +386,18 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T00/B00/XXXXX
 
 ### 3. Initialize & Run
 ```bash
-# Terminal 1: Launch Backend Gateway (Port 5005)
-cd backend
+# 🚀 Recommended: 1-Command Full-Stack Launch (from project root)
 npm run dev
+# (Starts Backend Gateway on :5005 and Frontend Console on :5173 simultaneously)
 
-# Terminal 2: Launch Frontend Console (Vite on http://localhost:5173)
-cd frontend
-npm run dev
+# Alternatively, run services in separate terminals:
+# Terminal 1: Backend Gateway
+npm run dev:backend
 
-# Terminal 3: Run Full Validation Smoke Tests
-cd backend
+# Terminal 2: Frontend Console
+npm run dev:frontend
+
+# Run Full Validation Smoke Tests:
 npm run test:smoke
 ```
 
