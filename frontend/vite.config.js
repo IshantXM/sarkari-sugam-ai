@@ -12,7 +12,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5005',
+        target: 'https://sarkari-sugam-ai.onrender.com',
         changeOrigin: true,
       },
     },
