@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { testConnection, switchDatabase, getActiveDatabaseStatus } from '../db/manager.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
+
+// Strictly enforce JWT authentication on database management endpoints
+router.use(authenticateToken);
 
 const uriSchema = z.object({
   uri: z.string().min(5, 'Connection string is required'),

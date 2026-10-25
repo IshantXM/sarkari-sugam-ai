@@ -64,11 +64,10 @@ function ActivityIcon() {
 }
 
 export default function App() {
-  const { user, token, logout } = useAuth();
+  const { user, token, logout, authFetch, loading } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [healthData, setHealthData] = useState(null);
-
 
   // Search State
   const [searchQuery, setSearchQuery] = useState('highway road construction tender');
@@ -82,7 +81,6 @@ export default function App() {
   const [fetchLoading, setFetchLoading] = useState(false);
   const [fetchData, setFetchData] = useState(null);
   const [fetchError, setFetchError] = useState(null);
-
 
   // Diff & Watchdog State
   const [diffTenderId, setDiffTenderId] = useState('TNDR-SWWYD8TQHQYENTNI');
@@ -99,36 +97,27 @@ export default function App() {
   const [expandedHistoryId, setExpandedHistoryId] = useState(null);
 
   // Session Tenders
-  const [savedTenders, setSavedTenders] = useState([
-    {
-      tender_id: 'TNDR-SWWYD8TQHQYENTNI',
-      title: 'Improvement of SH 52 from Anparu Siddapura, Thirthahalli Kundapura, Udupi Dist.',
-      issuing_agency: 'EE NH Division Shivamogga - MoRTH',
-      budget_usd: 1250000,
-      submission_deadline: '24-Nov-2026',
-      eligibility: 'Works Category, Open Tender',
-      source_url:
-        'https://eprocure.gov.in/eprocure/app?component=%24DirectLink&page=FrontEndViewTender&service=direct&session=T&sp=SWWYD8TQhQYENtniIfmtVcw%3D%3D',
-      extraction_confidence: 0.85,
-    },
-  ]);
+  const [savedTenders, setSavedTenders] = useState([]);
 
   useEffect(() => {
-    fetchHealth();
-    fetchSavedTenders();
-  }, [activeTab]);
+    if (token && user) {
+      fetchHealth();
+      fetchSavedTenders();
+    }
+  }, [activeTab, token, user]);
 
   useEffect(() => {
-    // Keep health metrics live every 8 seconds
+    if (!token || !user) return;
+    // Keep health metrics live every 12 seconds
     const interval = setInterval(() => {
       fetchHealth();
-    }, 8000);
+    }, 12000);
     return () => clearInterval(interval);
-  }, []);
+  }, [token, user]);
 
   async function fetchHealth() {
     try {
-      const res = await fetch('/api/health');
+      const res = await authFetch('/api/health');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setHealthData(data);
@@ -140,7 +129,7 @@ export default function App() {
 
   async function fetchSavedTenders() {
     try {
-      const res = await fetch('/api/tenders/saved');
+      const res = await authFetch('/api/tenders/saved');
       const data = await res.json();
       if (data.status === 'success' && Array.isArray(data.data) && data.data.length > 0) {
         setSavedTenders(data.data);
@@ -149,8 +138,6 @@ export default function App() {
       console.warn('Could not fetch saved tenders:', err);
     }
   }
-
-
 
   // Action: Search
   async function handleSearch(e) {
@@ -161,11 +148,10 @@ export default function App() {
     setSearchError(null);
 
     try {
-      const res = await fetch('/api/tenders/search', {
+      const res = await authFetch('/api/tenders/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ query: searchQuery, limit: Number(searchLimit) }),
       });
@@ -191,11 +177,10 @@ export default function App() {
     setFetchData(null);
 
     try {
-      const res = await fetch('/api/tenders/fetch', {
+      const res = await authFetch('/api/tenders/fetch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ url: fetchUrl }),
       });
@@ -219,8 +204,6 @@ export default function App() {
     }
   }
 
-
-
   // Action: Diff
   async function handleDiff(e) {
     if (e) e.preventDefault();
@@ -242,11 +225,10 @@ export default function App() {
     }
 
     try {
-      const res = await fetch('/api/tenders/diff', {
+      const res = await authFetch('/api/tenders/diff', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -269,11 +251,10 @@ export default function App() {
     setSweepLoading(true);
     setSweepResult(null);
     try {
-      const res = await fetch('/api/tenders/monitor/sweep', {
+      const res = await authFetch('/api/tenders/monitor/sweep', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
       const data = await res.json();
@@ -308,6 +289,28 @@ export default function App() {
       setDiffCurrentBudget('1750000');
       setDiffCurrentDeadline('25-Dec-2026');
     }
+  }
+
+  // MANDATORY AUTHENTICATION GUARD: Features can never be accessed without valid login
+  if (loading) {
+    return (
+      <div className="tf-auth-loading-screen">
+        <div className="tf-auth-loading-card">
+          <SarkariSugamLogoIcon />
+          <div className="tf-brand-name" style={{ fontSize: '20px', marginTop: '12px' }}>
+            Sarkari Sugam AI
+          </div>
+          <div style={{ color: 'var(--tf-text-secondary)', fontSize: '13px', marginTop: '6px' }}>
+            Verifying secure session token...
+          </div>
+          <div className="tf-spinner" style={{ marginTop: '16px' }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!token || !user) {
+    return <AuthModal isStandalone={true} />;
   }
 
   return (
@@ -401,40 +404,29 @@ export default function App() {
 
         {/* Sidebar Bottom (Profile & Status) */}
         <div className="tf-sidebar-bottom">
-          {user ? (
-            <div className="tf-user-profile-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div className="tf-user-profile-left">
-                <div className="tf-user-avatar">{user.name ? user.name[0].toUpperCase() : 'U'}</div>
-                <div style={{ overflow: 'hidden' }}>
-                  <div className="tf-user-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>{user.name}</span>
-                    <span className="tf-badge tf-badge-emerald" style={{ fontSize: '9px', padding: '1px 5px' }}>
-                      {user.role === 'PROCUREMENT_OFFICER' ? 'OFFICER' : 'VENDOR'}
-                    </span>
-                  </div>
-                  <div className="tf-user-email">{user.email}</div>
+          <div className="tf-user-profile-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="tf-user-profile-left">
+              <div className="tf-user-avatar">{user.name ? user.name[0].toUpperCase() : 'U'}</div>
+              <div style={{ overflow: 'hidden' }}>
+                <div className="tf-user-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{user.name}</span>
+                  <span className="tf-badge tf-badge-emerald" style={{ fontSize: '9px', padding: '1px 5px' }}>
+                    Active
+                  </span>
                 </div>
+                <div className="tf-user-email">{user.email}</div>
               </div>
-              <button
-                type="button"
-                className="tf-btn tf-btn-ghost"
-                style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--tf-text-muted)' }}
-                onClick={logout}
-                title="Sign Out"
-              >
-                Logout
-              </button>
             </div>
-          ) : (
             <button
               type="button"
-              className="tf-btn tf-btn-orange"
-              style={{ width: '100%', fontSize: '12px', padding: '8px 10px', justifyContent: 'center' }}
-              onClick={() => setAuthModalOpen(true)}
+              className="tf-btn tf-btn-ghost"
+              style={{ padding: '4px 6px', fontSize: '11px', color: 'var(--tf-rose)', fontWeight: '600' }}
+              onClick={logout}
+              title="Sign Out & Invalidate JWT"
             >
-              Sign In / Select Role &rarr;
+              Sign Out
             </button>
-          )}
+          </div>
         </div>
       </aside>
 
@@ -445,7 +437,7 @@ export default function App() {
           <div>
             {activeTab === 'home' && <div className="tf-welcome-sub">Welcome back</div>}
             <h1 className="tf-page-title">
-              {activeTab === 'home' && "Ishant"}
+              {activeTab === 'home' && (user.name || 'Console')}
               {activeTab === 'search' && 'Search Playground'}
               {activeTab === 'fetch' && 'Structured Fetch Playground'}
               {activeTab === 'diff' && 'Monitor & Corrigendum Watchdog'}
@@ -457,13 +449,14 @@ export default function App() {
             <button
               type="button"
               className="tf-btn tf-btn-secondary"
-              style={{ padding: '5px 12px', fontSize: '12px' }}
-              onClick={() => setAuthModalOpen(true)}
+              style={{ padding: '5px 12px', fontSize: '12px', color: 'var(--tf-rose)', fontWeight: '500' }}
+              onClick={logout}
+              title="Sign Out & Revoke JWT"
             >
-              {user ? 'Switch Role' : 'Sign In'}
+              Sign Out
             </button>
             <span className="tf-badge tf-badge-gray">eprocure.gov.in Live Gateway</span>
-            <span className="tf-badge tf-badge-emerald">System Online</span>
+            <span className="tf-badge tf-badge-emerald">JWT Protected Session</span>
           </div>
         </div>
 
@@ -1297,10 +1290,10 @@ export default function App() {
               <div className="tf-field-box">
                 <div className="tf-field-key">BACKEND REST SERVER</div>
                 <div className="tf-field-val" style={{ color: healthData?.ok ? '#059669' : '#dc2626' }}>
-                  {healthData?.ok ? '200 OK (Port 5000)' : 'Offline'}
+                  {healthData?.ok ? '200 OK (Port 5005)' : 'Offline'}
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--tf-text-muted)', marginTop: '4px' }}>
-                  Express API gateway on localhost:5000
+                  Express API gateway on localhost:5005
                 </div>
               </div>
 
@@ -1367,11 +1360,11 @@ export default function App() {
                 </div>
                 <div>
                   <span style={{ color: 'var(--tf-text-muted)' }}>Vite Proxy Target: </span>
-                  <strong style={{ color: '#059669' }}>http://localhost:5000</strong>
+                  <strong style={{ color: '#059669' }}>http://localhost:5005</strong>
                 </div>
                 <div>
                   <span style={{ color: 'var(--tf-text-muted)' }}>Backend Express Port: </span>
-                  <strong style={{ color: '#059669' }}>5000 (Defined in backend/.env)</strong>
+                  <strong style={{ color: '#059669' }}>5005 (Defined in backend/.env)</strong>
                 </div>
               </div>
             </div>

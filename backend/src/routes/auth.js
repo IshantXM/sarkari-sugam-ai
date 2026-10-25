@@ -3,20 +3,17 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import config from '../../config/env.js';
 import User from '../models/User.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, revokeToken } from '../middleware/auth.js';
 import { sendResetCodeEmail } from '../services/mailer.js';
 import logger from '../../utils/logger.js';
 
 const router = Router();
 
-// Validation schemas
+// Validation schemas (roles and department removed from user registration)
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must have at least 2 characters'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  role: z.enum(['PROCUREMENT_OFFICER', 'BIDDER_VENDOR', 'AUDITOR']).optional().default('PROCUREMENT_OFFICER'),
-  department: z.string().optional().default('MoRTH National Highways Division'),
-  organization: z.string().optional().default('Government of India'),
 });
 
 const loginSchema = z.object({
@@ -50,7 +47,7 @@ export async function seedDemoAccounts() {
       const existing = await User.findOne({ email: acc.email });
       if (!existing) {
         await User.create(acc);
-        logger.info(`[AUTH SEED] Created demo account: ${acc.email} (${acc.role})`);
+        logger.info(`[AUTH SEED] Created demo account: ${acc.email}`);
       }
     }
 
@@ -78,7 +75,7 @@ export async function seedDemoAccounts() {
   }
 }
 
-// POST /api/auth/register (Direct JWT authentication)
+// POST /api/auth/register (Direct JWT authentication without role/dept complexity)
 router.post('/register', async (req, res, next) => {
   try {
     const parsed = registerSchema.safeParse(req.body);
@@ -90,9 +87,10 @@ router.post('/register', async (req, res, next) => {
       });
     }
 
-    const { name, email, password, role, department, organization } = parsed.data;
+    const { name, email, password } = parsed.data;
+    const cleanEmail = email.toLowerCase().trim();
 
-    const existing = await User.findOne({ email });
+    const existing = await User.findOne({ email: cleanEmail });
     if (existing) {
       return res.status(409).json({
         status: 'error',
@@ -102,22 +100,20 @@ router.post('/register', async (req, res, next) => {
     }
 
     const newUser = await User.create({
-      name,
-      email,
+      name: name.trim(),
+      email: cleanEmail,
       password,
-      role,
-      department,
-      organization,
+      role: 'USER',
+      department: 'General',
+      organization: 'Government of India',
     });
 
     const token = jwt.sign(
       {
-        id: newUser._id.toString(),
+        id: (newUser._id || newUser.id).toString(),
         email: newUser.email,
         name: newUser.name,
-        role: newUser.role,
-        department: newUser.department,
-        organization: newUser.organization,
+        role: newUser.role || 'USER',
       },
       config.jwt.secret,
       { expiresIn: config.jwt.expiresIn }
@@ -147,7 +143,7 @@ router.post('/login', async (req, res, next) => {
 
     const { email, password } = parsed.data;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
       return res.status(401).json({
         status: 'error',
@@ -167,12 +163,10 @@ router.post('/login', async (req, res, next) => {
 
     const token = jwt.sign(
       {
-        id: user._id.toString(),
+        id: (user._id || user.id).toString(),
         email: user.email,
         name: user.name,
-        role: user.role,
-        department: user.department,
-        organization: user.organization,
+        role: user.role || 'USER',
       },
       config.jwt.secret,
       { expiresIn: config.jwt.expiresIn }
@@ -186,6 +180,20 @@ router.post('/login', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// POST /api/auth/logout (Properly revokes and deletes the JWT token)
+router.post('/logout', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (token) {
+    revokeToken(token);
+    logger.info(`[AUTH] Session token invalidated and revoked on logout`);
+  }
+  res.json({
+    status: 'success',
+    message: 'Logged out successfully. JWT session token has been revoked.',
+  });
 });
 
 // GET /api/auth/me (re-validates session)

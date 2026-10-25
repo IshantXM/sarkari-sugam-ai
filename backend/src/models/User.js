@@ -11,11 +11,10 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 6 },
     role: {
       type: String,
-      enum: ['PROCUREMENT_OFFICER', 'BIDDER_VENDOR', 'AUDITOR'],
-      default: 'PROCUREMENT_OFFICER',
+      default: 'USER',
     },
-    department: { type: String, default: 'MoRTH National Highways Division' },
-    organization: { type: String, default: 'Ministry of Road Transport and Highways' },
+    department: { type: String, default: 'General' },
+    organization: { type: String, default: 'Government of India' },
   },
   { timestamps: true }
 );
@@ -114,9 +113,9 @@ export const User = {
           data.name,
           data.email.toLowerCase().trim(),
           hashedPassword,
-          data.role || 'PROCUREMENT_OFFICER',
-          data.department || 'MoRTH National Highways Division',
-          data.organization || 'Ministry of Road Transport and Highways',
+          data.role || 'USER',
+          data.department || 'General',
+          data.organization || 'Government of India',
         ]
       );
       return wrapPostgresUser(res.rows[0]);
