@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import config from '../../config/env.js';
 import { query } from '../db/postgres.js';
+import snapshotStore from '../../services/snapshotStore.js';
 
 // Mongoose Tender Schema for MongoDB
 const tenderSchema = new mongoose.Schema(
@@ -116,6 +117,40 @@ export const Tender = {
 
       return chain;
     }
+
+    if (mongoose.connection.readyState !== 1) {
+      let sortDirection = -1;
+      let limitVal = 50;
+      const executor = async () => {
+        let list = [...snapshotStore.list()];
+        if (sortDirection === -1) {
+          list.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+        } else {
+          list.sort((a, b) => new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0));
+        }
+        return list.slice(0, limitVal);
+      };
+
+      const chain = {
+        sort(sortObj) {
+          if (sortObj && sortObj.updatedAt === 1) sortDirection = 1;
+          return chain;
+        },
+        limit(num) {
+          limitVal = num;
+          return chain;
+        },
+        then(resolve, reject) {
+          return executor().then(resolve, reject);
+        },
+        catch(reject) {
+          return executor().catch(reject);
+        },
+      };
+
+      return chain;
+    }
+
     return MongoTender.find(filter);
   },
 
@@ -127,6 +162,15 @@ export const Tender = {
       }
       return null;
     }
+
+    if (mongoose.connection.readyState !== 1) {
+      if (filter.tender_id) {
+        return snapshotStore.get(filter.tender_id) || null;
+      }
+      const list = snapshotStore.list();
+      return list.length ? list[0] : null;
+    }
+
     return MongoTender.findOne(filter);
   },
 
@@ -154,6 +198,11 @@ export const Tender = {
       );
       return wrapPostgresTender(res.rows[0]);
     }
+
+    if (mongoose.connection.readyState !== 1) {
+      return snapshotStore.save(data);
+    }
+
     return MongoTender.create(data);
   },
 
@@ -220,6 +269,19 @@ export const Tender = {
       return null;
     }
 
+    if (mongoose.connection.readyState !== 1) {
+      const tenderId = filter.tender_id;
+      if (!tenderId) return null;
+      const existing = snapshotStore.get(tenderId) || {};
+      const setData = update.$set || update;
+      const updated = snapshotStore.save({
+        ...existing,
+        ...setData,
+        tender_id: tenderId,
+      });
+      return updated;
+    }
+
     return MongoTender.findOneAndUpdate(filter, update, options);
   },
 
@@ -232,6 +294,11 @@ export const Tender = {
         return 0;
       }
     }
+
+    if (mongoose.connection.readyState !== 1) {
+      return snapshotStore.list().length;
+    }
+
     return MongoTender.countDocuments();
   },
 };

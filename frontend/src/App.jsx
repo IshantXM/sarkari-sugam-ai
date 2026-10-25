@@ -1290,7 +1290,7 @@ export default function App() {
               <div className="tf-field-box">
                 <div className="tf-field-key">BACKEND REST SERVER</div>
                 <div className="tf-field-val" style={{ color: healthData?.ok ? '#059669' : '#dc2626' }}>
-                  {healthData?.ok ? '200 OK (Port 5005)' : 'Offline'}
+                  {healthData?.ok ? `200 OK (Port ${healthData.port || 5005})` : 'Offline'}
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--tf-text-muted)', marginTop: '4px' }}>
                   Express API gateway on localhost:5005
