@@ -107,12 +107,20 @@ async function runSmokeTests() {
     logResult('Security 401: Unauthenticated access blocked on /api/tenders/saved', false, `(Error: ${err.message})`);
   }
 
-  // Test Auth 2: Authenticate and obtain JWT
+  // Test Auth 2: Authenticate and obtain JWT (using dynamically registered user)
   let authToken = null;
+  const smokeEmail = `smoke_${Date.now()}@test-sugam.in`;
+  const smokePass = 'sugamPass123!';
   try {
+    await client.post('/api/auth/register', {
+      name: 'Smoke Test User',
+      email: smokeEmail,
+      password: smokePass,
+    });
+
     const loginRes = await client.post('/api/auth/login', {
-      email: 'ishantmohan045@gmail.com',
-      password: 'sugam123',
+      email: smokeEmail,
+      password: smokePass,
     });
     const valid = loginRes.status === 200 && Boolean(loginRes.data?.token);
     authToken = loginRes.data?.token;

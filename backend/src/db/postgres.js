@@ -71,7 +71,7 @@ export async function connectPostgres() {
         source_url TEXT DEFAULT '',
         extraction_confidence NUMERIC DEFAULT 0.85,
         status VARCHAR(50) DEFAULT 'MONITORED',
-        saved_by VARCHAR(255) DEFAULT 'ishantmohan045@gmail.com',
+        saved_by VARCHAR(255) DEFAULT NULL,
         history JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()

@@ -13,7 +13,7 @@ const envSchema = z.object({
       }
       return val;
     }, z.boolean())
-    .default(true),
+    .default(false),
   TINYFISH_API_KEY: z.string().optional().default(''),
   TINYFISH_BASE_URL: z.string().url().default('https://api.tinyfish.co/v1'),
   PORTAL_USER: z.string().optional().default(''),
@@ -52,9 +52,7 @@ const tinyfishConfigured = Boolean(
 
 let activeDemoMode = rawConfig.DEMO_MODE;
 if (!tinyfishConfigured) {
-  activeDemoMode = true;
   console.warn('[CONFIG WARN] TINYFISH_API_KEY is not configured or placeholder detected.');
-  console.warn('[CONFIG WARN] Operating in DEMO_MODE (seeded responses enabled).');
 }
 
 export const config = Object.freeze({

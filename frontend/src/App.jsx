@@ -70,7 +70,7 @@ export default function App() {
   const [healthData, setHealthData] = useState(null);
 
   // Search State
-  const [searchQuery, setSearchQuery] = useState('highway road construction tender');
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchLimit, setSearchLimit] = useState(5);
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -83,12 +83,10 @@ export default function App() {
   const [fetchError, setFetchError] = useState(null);
 
   // Diff & Watchdog State
-  const [diffTenderId, setDiffTenderId] = useState('TNDR-SWWYD8TQHQYENTNI');
-  const [diffUrl, setDiffUrl] = useState(
-    'https://eprocure.gov.in/eprocure/app?component=%24DirectLink&page=FrontEndViewTender&service=direct&session=T&sp=SWWYD8TQhQYENtniIfmtVcw%3D%3D'
-  );
-  const [diffCurrentBudget, setDiffCurrentBudget] = useState('1450000');
-  const [diffCurrentDeadline, setDiffCurrentDeadline] = useState('2026-12-10');
+  const [diffTenderId, setDiffTenderId] = useState('');
+  const [diffUrl, setDiffUrl] = useState('');
+  const [diffCurrentBudget, setDiffCurrentBudget] = useState('');
+  const [diffCurrentDeadline, setDiffCurrentDeadline] = useState('');
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffResult, setDiffResult] = useState(null);
   const [diffError, setDiffError] = useState(null);
@@ -271,24 +269,10 @@ export default function App() {
     if (!tender) return;
     setDiffTenderId(tender.tender_id);
     setDiffUrl(tender.source_url || '');
-    setDiffCurrentBudget(tender.budget_usd ? String(tender.budget_usd) : '1250000');
-    setDiffCurrentDeadline(tender.submission_deadline || '2026-11-24');
+    setDiffCurrentBudget(tender.budget_usd ? String(tender.budget_usd) : '');
+    setDiffCurrentDeadline(tender.submission_deadline || '');
     setDiffResult(null);
     setDiffError(null);
-  }
-
-  function applyPreset(type) {
-    if (type === 'clean') {
-      setDiffCurrentBudget('1250000');
-      setDiffCurrentDeadline('24-Nov-2026');
-    } else if (type === 'budget') {
-      setDiffCurrentBudget('1450000');
-    } else if (type === 'deadline') {
-      setDiffCurrentDeadline('10-Dec-2026');
-    } else if (type === 'major') {
-      setDiffCurrentBudget('1750000');
-      setDiffCurrentDeadline('25-Dec-2026');
-    }
   }
 
   // MANDATORY AUTHENTICATION GUARD: Features can never be accessed without valid login
@@ -563,30 +547,38 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {savedTenders.map((item, idx) => (
-                        <tr key={idx}>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontWeight: '600', color: 'var(--tf-orange)' }}>
-                            {item.tender_id}
-                          </td>
-                          <td style={{ fontWeight: '500' }}>{item.issuing_agency || 'Ministry'}</td>
-                          <td style={{ maxWidth: '300px' }}>{item.title}</td>
-                          <td style={{ color: 'var(--tf-amber)' }}>{item.submission_deadline || 'Open'}</td>
-                          <td>
-                            <button
-                              type="button"
-                              className="tf-btn tf-btn-secondary"
-                              style={{ padding: '4px 10px', fontSize: '11px' }}
-                              onClick={() => {
-                                setDiffTenderId(item.tender_id);
-                                setDiffUrl(item.source_url);
-                                setActiveTab('diff');
-                              }}
-                            >
-                              Check Diff &rarr;
-                            </button>
+                      {savedTenders.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: 'center', padding: '28px', color: 'var(--tf-text-muted)' }}>
+                            No contracts currently monitored. Extract a tender via Fetch or Search to begin live monitoring.
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        savedTenders.map((item, idx) => (
+                          <tr key={idx}>
+                            <td style={{ fontFamily: 'var(--font-mono)', fontWeight: '600', color: 'var(--tf-orange)' }}>
+                              {item.tender_id}
+                            </td>
+                            <td style={{ fontWeight: '500' }}>{item.issuing_agency || 'Ministry'}</td>
+                            <td style={{ maxWidth: '300px' }}>{item.title}</td>
+                            <td style={{ color: 'var(--tf-amber)' }}>{item.submission_deadline || 'Open'}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="tf-btn tf-btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '11px' }}
+                                onClick={() => {
+                                  setDiffTenderId(item.tender_id);
+                                  setDiffUrl(item.source_url);
+                                  setActiveTab('diff');
+                                }}
+                              >
+                                Check Diff &rarr;
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -600,10 +592,10 @@ export default function App() {
               <div className="tf-snapshot-card">
                 <div className="tf-snapshot-row">
                   <div>
-                    <div className="tf-snapshot-label">Total runs</div>
-                    <div className="tf-snapshot-sub">Automation runs</div>
+                    <div className="tf-snapshot-label">Total monitored</div>
+                    <div className="tf-snapshot-sub">Active contracts</div>
                   </div>
-                  <div className="tf-snapshot-val">24</div>
+                  <div className="tf-snapshot-val">{savedTenders.length}</div>
                 </div>
 
                 <div className="tf-snapshot-row">
@@ -1112,40 +1104,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Quick Presets for instant testing */}
-                <div className="tf-chip-group">
-                  <span className="tf-chip-label">Quick Corrigendum Simulation Presets</span>
-                  <div className="tf-chip-list">
-                    <button
-                      type="button"
-                      className="tf-chip"
-                      onClick={() => applyPreset('clean')}
-                    >
-                      ⚡ Clean Baseline Match (No Change)
-                    </button>
-                    <button
-                      type="button"
-                      className="tf-chip"
-                      onClick={() => applyPreset('budget')}
-                    >
-                      ⚡ Corrigendum: Budget Hike (+$200k)
-                    </button>
-                    <button
-                      type="button"
-                      className="tf-chip"
-                      onClick={() => applyPreset('deadline')}
-                    >
-                      ⚡ Corrigendum: Deadline Extension (+16 Days)
-                    </button>
-                    <button
-                      type="button"
-                      className="tf-chip"
-                      onClick={() => applyPreset('major')}
-                    >
-                      ⚡ Major Corrigendum (Both Budget & Deadline)
-                    </button>
-                  </div>
-                </div>
+
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
                   <button type="submit" className="tf-btn tf-btn-orange" disabled={diffLoading}>
@@ -1232,14 +1191,14 @@ export default function App() {
                         <div style={{ fontWeight: '600', color: '#0f172a', marginBottom: '4px' }}>📢 Slack Webhook</div>
                         <div style={{ color: 'var(--tf-text-secondary)' }}>Channel: <code>{diffResult.alert.channel}</code></div>
                         <div style={{ color: '#059669', fontWeight: '600', marginTop: '4px' }}>
-                          {diffResult.alert.mode === 'simulated' ? '• Payload Logged (Mock Delivery)' : '• Dispatched Live to Slack'}
+                          {diffResult.alert.mode === 'simulated' ? '• Payload Logged' : '• Dispatched Live to Slack'}
                         </div>
                       </div>
 
                       <div className="tf-alert-col">
                         <div style={{ fontWeight: '600', color: '#0f172a', marginBottom: '4px' }}>📬 Nodemailer Official Email</div>
                         <div style={{ color: 'var(--tf-text-secondary)', wordBreak: 'break-all' }}>
-                          Recipient: <code>{diffResult.alert.email?.recipient || user?.email || 'ishantmohan045@gmail.com'}</code>
+                          Recipient: <code>{diffResult.alert.email?.recipient || user?.email || 'N/A'}</code>
                         </div>
                         {diffResult.alert.email?.isRealSmtp ? (
                           <div style={{ color: '#059669', fontWeight: '600', marginTop: '4px' }}>• Delivered via SMTP Server</div>
@@ -1371,7 +1330,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Auth Modal for Sign In / Register / Quick Demo */}
+        {/* Auth Modal for Sign In / Register */}
         <AuthModal
           isOpen={authModalOpen}
           onClose={() => setAuthModalOpen(false)}

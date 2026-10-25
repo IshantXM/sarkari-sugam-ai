@@ -26,7 +26,6 @@ export default function AuthModal({ isOpen, onClose, isStandalone = false }) {
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [devCode, setDevCode] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
   const [loading, setLoading] = useState(false);
@@ -43,7 +42,6 @@ export default function AuthModal({ isOpen, onClose, isStandalone = false }) {
     setResetCode('');
     setNewPassword('');
     setConfirmPassword('');
-    setDevCode(null);
     setPreviewUrl(null);
     setForgotStep('request');
     setError(null);
@@ -83,9 +81,6 @@ export default function AuthModal({ isOpen, onClose, isStandalone = false }) {
         if (forgotStep === 'request') {
           const res = await forgotPassword(email.trim());
           setForgotStep('verify');
-          if (res.devCode) {
-            setDevCode(res.devCode);
-          }
           if (res.previewUrl) {
             setPreviewUrl(res.previewUrl);
           }
@@ -110,19 +105,6 @@ export default function AuthModal({ isOpen, onClose, isStandalone = false }) {
     }
   }
 
-  async function handleDemoLogin(demoEmail, demoPass) {
-    setError(null);
-    setSuccessMsg(null);
-    setLoading(true);
-    try {
-      await login(demoEmail, demoPass);
-      if (onClose) onClose();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const modalContent = (
     <div
@@ -161,33 +143,7 @@ export default function AuthModal({ isOpen, onClose, isStandalone = false }) {
         </div>
       )}
 
-      {/* 1-Click Demo Login Bar (Only in signin tab) */}
-      {tab === 'signin' && (
-        <div className="tf-demo-login-box">
-          <div className="tf-demo-login-label">Quick 1-Click Demo Access</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <button
-              type="button"
-              className="tf-demo-btn officer"
-              onClick={() => handleDemoLogin('ishantmohan045@gmail.com', 'sugam123')}
-              disabled={loading}
-            >
-              <span style={{ fontWeight: '700' }}>Ishant Mohan</span>
-              <span style={{ fontSize: '10px', opacity: 0.85 }}>ishantmohan045@gmail.com</span>
-            </button>
 
-            <button
-              type="button"
-              className="tf-demo-btn vendor"
-              onClick={() => handleDemoLogin('vendor@infra-bidder.in', 'sugam123')}
-              disabled={loading}
-            >
-              <span style={{ fontWeight: '700' }}>EPC Consortium</span>
-              <span style={{ fontSize: '10px', opacity: 0.85 }}>vendor@infra-bidder.in</span>
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Navigation Tabs (signin & register) */}
       {tab !== 'forgot' ? (
@@ -327,27 +283,17 @@ export default function AuthModal({ isOpen, onClose, isStandalone = false }) {
               Enter the 6-digit code sent for <strong>{email}</strong> and choose your new password.
             </div>
 
-            {devCode && (
-              <div style={{ margin: '2px 0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <button
-                  type="button"
-                  className="tf-code-pill"
-                  onClick={() => setResetCode(devCode)}
-                  title="Click to auto-fill code"
+            {previewUrl && (
+              <div style={{ margin: '2px 0 8px 0' }}>
+                <a
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tf-link-btn"
+                  style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                 >
-                  ⚡ Demo Helper: Click to fill code <strong>{devCode}</strong>
-                </button>
-                {previewUrl && (
-                  <a
-                    href={previewUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="tf-link-btn"
-                    style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    📧 View dispatched verification email preview →
-                  </a>
-                )}
+                  📧 View dispatched verification email preview →
+                </a>
               </div>
             )}
 
