@@ -68,6 +68,7 @@ export default function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [healthData, setHealthData] = useState(null);
+  const [_lastRawResponse, setLastRawResponse] = useState(null);
 
 
   // Search State
@@ -116,8 +117,10 @@ export default function App() {
   useEffect(() => {
     let ignore = false;
     async function init() {
-      await fetchHealth();
-      await fetchSavedTenders();
+      if (!ignore) {
+        await fetchHealth();
+        await fetchSavedTenders();
+      }
     }
     init();
     return () => {
@@ -1284,7 +1287,7 @@ export default function App() {
               <div className="tf-field-box">
                 <div className="tf-field-key">BACKEND SERVER</div>
                 <div className="tf-field-val" style={{ color: healthData?.ok ? '#059669' : '#dc2626' }}>
-                  {healthData?.ok ? '200 OK (Port 5000)' : 'Offline'}
+                  {healthData?.ok ? `200 OK (Port ${healthData.port || 5005})` : 'Offline'}
                 </div>
               </div>
 
