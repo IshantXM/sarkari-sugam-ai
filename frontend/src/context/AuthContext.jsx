@@ -35,6 +35,43 @@ export function AuthProvider({ children }) {
     checkSession();
   }, [token]);
 
+  // Proper Logout: notifies backend to invalidate JWT in blacklist, clears localStorage and React state
+  async function logout() {
+    const currentToken = token || localStorage.getItem('ss_auth_token');
+    if (currentToken) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${currentToken}`,
+          },
+        });
+      } catch (err) {
+        console.warn('[AUTH] Server logout notice skipped:', err.message);
+      }
+    }
+    localStorage.removeItem('ss_auth_token');
+    setToken(null);
+    setUser(null);
+  }
+
+  // Centralized authenticated fetch: automatically attaches JWT and handles 401 token invalidation
+  async function authFetch(url, options = {}) {
+    const currentToken = token || localStorage.getItem('ss_auth_token');
+    const headers = {
+      ...(options.headers || {}),
+      ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
+    };
+
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) {
+      await logout();
+      throw new Error('Your session has expired or is unauthorized. Please sign in again.');
+    }
+    return res;
+  }
+
   async function login(email, password) {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
@@ -65,7 +102,12 @@ export function AuthProvider({ children }) {
       throw new Error(data.message || 'Registration failed');
     }
 
-    // Account created in database; return data without auto-login
+    // Auto-login upon successful registration
+    if (data.token && data.user) {
+      localStorage.setItem('ss_auth_token', data.token);
+      setToken(data.token);
+      setUser(data.user);
+    }
     return data;
   }
 
@@ -97,12 +139,6 @@ export function AuthProvider({ children }) {
     return data;
   }
 
-  function logout() {
-    localStorage.removeItem('ss_auth_token');
-    setToken(null);
-    setUser(null);
-  }
-
   return (
     <AuthContext.Provider
       value={{
@@ -113,6 +149,7 @@ export function AuthProvider({ children }) {
         forgotPassword,
         resetPassword,
         logout,
+        authFetch,
         loading,
       }}
     >

@@ -96,7 +96,33 @@ async function runSmokeTests() {
     timeout: 45000,
   });
 
-  console.log('--- POSITIVE TEST CASES (Valid Inputs) ---');
+  console.log('--- AUTHENTICATION & JWT INTEGRITY TESTS ---');
+
+  // Test Auth 1: Unauthenticated request to protected endpoint must return 401
+  try {
+    const unauthRes = await client.get('/api/tenders/saved');
+    const valid = unauthRes.status === 401 && unauthRes.data?.error === 'unauthorized';
+    logResult('Security 401: Unauthenticated access blocked on /api/tenders/saved', valid, `(Status: ${unauthRes.status})`);
+  } catch (err) {
+    logResult('Security 401: Unauthenticated access blocked on /api/tenders/saved', false, `(Error: ${err.message})`);
+  }
+
+  // Test Auth 2: Authenticate and obtain JWT
+  let authToken = null;
+  try {
+    const loginRes = await client.post('/api/auth/login', {
+      email: 'ishantmohan045@gmail.com',
+      password: 'sugam123',
+    });
+    const valid = loginRes.status === 200 && Boolean(loginRes.data?.token);
+    authToken = loginRes.data?.token;
+    client.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+    logResult('POST /api/auth/login', valid, `(Status: ${loginRes.status}, User: ${loginRes.data?.user?.email})`);
+  } catch (err) {
+    logResult('POST /api/auth/login', false, `(Error: ${err.message})`);
+  }
+
+  console.log('\n--- POSITIVE TEST CASES (Valid Inputs with JWT) ---');
 
   // Test 1: GET /api/health
   try {
@@ -234,6 +260,22 @@ async function runSmokeTests() {
     logResult('Route 404: Unmatched endpoint handler', valid, `(Status: ${res.status}, Error: ${res.data?.error})`);
   } catch (err) {
     logResult('Route 404: Unmatched endpoint handler', false, `(Error: ${err.message})`);
+  }
+
+  console.log('\n--- TOKEN REVOCATION & PROPER DELETION TESTS ---');
+
+  // Test Logout & Token Invalidation
+  try {
+    const logoutRes = await client.post('/api/auth/logout');
+    const valid = logoutRes.status === 200 && logoutRes.data?.status === 'success';
+    logResult('POST /api/auth/logout (Session Revoked)', valid, `(Status: ${logoutRes.status})`);
+
+    // Verify revoked token is now rejected with 401
+    const postLogoutRes = await client.get('/api/tenders/saved');
+    const tokenBlocked = postLogoutRes.status === 401 && postLogoutRes.data?.error === 'token_revoked';
+    logResult('Security 401: Revoked token rejected on /api/tenders/saved', tokenBlocked, `(Status: ${postLogoutRes.status}, Error: ${postLogoutRes.data?.error})`);
+  } catch (err) {
+    logResult('POST /api/auth/logout & Revocation Check', false, `(Error: ${err.message})`);
   }
 
   console.log(`\n=======================================================`);

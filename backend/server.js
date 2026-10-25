@@ -9,6 +9,7 @@ import tendersRouter from './routes/tenders.js';
 import authRouter, { seedDemoAccounts } from './src/routes/auth.js';
 import databaseRouter from './src/routes/database.js';
 import { connectDB } from './src/db/connection.js';
+import { authenticateToken } from './src/middleware/auth.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -68,8 +69,8 @@ app.use((req, res, next) => {
 // Route Mounting
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
-app.use('/api/database', databaseRouter);
-app.use('/api/tenders', tendersRouter);
+app.use('/api/database', authenticateToken, databaseRouter);
+app.use('/api/tenders', authenticateToken, tendersRouter);
 
 // 404 Handler for undefined routes
 app.use(notFoundHandler);
