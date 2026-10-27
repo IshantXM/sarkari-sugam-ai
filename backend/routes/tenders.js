@@ -9,12 +9,11 @@ import alerts from '../services/alerts.js';
 import snapshotStore from '../services/snapshotStore.js';
 import Tender from '../src/models/Tender.js';
 import { parseSchemeImage } from '../services/schemeVision.js';
-import { authenticateToken } from '../src/middleware/auth.js';
 
 const router = Router();
 
-// Strictly enforce JWT authentication across all tender feature endpoints
-router.use(authenticateToken);
+// NOTE: authenticateToken is already applied at the router-mount level in server.js
+// Do NOT add router.use(authenticateToken) here — it would double-verify JWT on every request
 
 // Validation Schemas
 const searchBodySchema = z.object({

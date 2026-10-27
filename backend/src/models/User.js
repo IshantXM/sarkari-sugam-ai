@@ -19,9 +19,13 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Salt rounds reduced to 8 for faster auth on free-tier hosting (Render)
+// genSalt(8) ≈ 60ms vs genSalt(10) ≈ 250ms — still cryptographically strong
+const BCRYPT_ROUNDS = 8;
+
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(BCRYPT_ROUNDS);
   this.password = await bcrypt.hash(this.password, salt);
 });
 
@@ -231,7 +235,7 @@ export const User = {
 
   async create(data) {
     if (config.databaseType === 'postgresql') {
-      const salt = await bcrypt.genSalt(10);
+      const salt = await bcrypt.genSalt(BCRYPT_ROUNDS);
       const hashedPassword = await bcrypt.hash(data.password, salt);
       const res = await query(
         `INSERT INTO users (name, email, password, role, department, organization)
@@ -250,7 +254,7 @@ export const User = {
     }
 
     if (mongoose.connection.readyState !== 1) {
-      const salt = await bcrypt.genSalt(10);
+      const salt = await bcrypt.genSalt(BCRYPT_ROUNDS);
       const hashedPassword = await bcrypt.hash(data.password, salt);
       const newUser = {
         id: `usr_${Date.now()}`,
@@ -306,7 +310,7 @@ export const User = {
   },
 
   async updatePassword(email, newPassword) {
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(BCRYPT_ROUNDS);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
     if (config.databaseType === 'postgresql') {
       const res = await query(

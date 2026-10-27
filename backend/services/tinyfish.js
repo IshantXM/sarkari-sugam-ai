@@ -41,47 +41,230 @@ async function executeWithRetry(operationFn) {
 }
 
 /**
- * Search the live web using TinyFish Search API biased toward procurement portals
+ * Known institution abbreviation expansions for Indian educational/government bodies.
+ * Maps short forms to { fullName, domain } so we can run a targeted site: search.
+ */
+const INSTITUTION_ALIASES = {
+  'iiit d':    { fullName: 'IIIT Delhi', domain: 'iiitd.ac.in' },
+  'iiitd':     { fullName: 'IIIT Delhi', domain: 'iiitd.ac.in' },
+  'iiit delhi':{ fullName: 'IIIT Delhi', domain: 'iiitd.ac.in' },
+  'iiit h':    { fullName: 'IIIT Hyderabad', domain: 'iiit.ac.in' },
+  'iiit b':    { fullName: 'IIIT Bangalore', domain: 'iiitb.ac.in' },
+  'iiit pune': { fullName: 'IIIT Pune', domain: 'iiitp.ac.in' },
+  'iiit l':    { fullName: 'IIIT Lucknow', domain: 'iiitl.ac.in' },
+  'iit d':     { fullName: 'IIT Delhi', domain: 'iitd.ac.in' },
+  'iit b':     { fullName: 'IIT Bombay', domain: 'iitb.ac.in' },
+  'iit m':     { fullName: 'IIT Madras', domain: 'iitm.ac.in' },
+  'iit k':     { fullName: 'IIT Kanpur', domain: 'iitk.ac.in' },
+  'iit kgp':   { fullName: 'IIT Kharagpur', domain: 'iitkgp.ac.in' },
+  'iit r':     { fullName: 'IIT Roorkee', domain: 'iitr.ac.in' },
+  'nit d':     { fullName: 'NIT Delhi', domain: 'nitdelhi.ac.in' },
+  'dtu':       { fullName: 'Delhi Technological University', domain: 'dtu.ac.in' },
+  'du':        { fullName: 'Delhi University', domain: 'du.ac.in' },
+  'jnu':       { fullName: 'Jawaharlal Nehru University', domain: 'jnu.ac.in' },
+  'aiims':     { fullName: 'AIIMS Delhi', domain: 'aiims.edu' },
+};
+
+/**
+ * Domains that host paywalled / scraped / outdated copies of tender documents.
+ * Results from these domains are filtered out.
+ */
+const JUNK_DOMAINS = new Set([
+  'scribd.com', 'www.scribd.com',
+  'coursehero.com', 'www.coursehero.com',
+  'studocu.com', 'www.studocu.com',
+  'academia.edu', 'www.academia.edu',
+  'slideshare.net', 'www.slideshare.net',
+  'docplayer.net', 'www.docplayer.net',
+]);
+
+/**
+ * Detect if a user query references a known institution and return its metadata.
+ */
+function detectInstitution(rawQuery) {
+  const lower = rawQuery.toLowerCase().trim();
+  for (const [alias, meta] of Object.entries(INSTITUTION_ALIASES)) {
+    if (lower.includes(alias)) {
+      return meta;
+    }
+  }
+  return null;
+}
+
+/**
+ * Build an intelligent search query:
+ * 1. Expand institution abbreviations (IIIT D → IIIT Delhi)
+ * 2. Don't duplicate words already present
+ * 3. Inject current year for freshness
+ */
+function buildSmartQuery(rawQuery) {
+  const institution = detectInstitution(rawQuery);
+
+  let expanded = rawQuery;
+  if (institution) {
+    // Replace the abbreviation with the full name for better matching
+    for (const [alias] of Object.entries(INSTITUTION_ALIASES)) {
+      const regex = new RegExp(alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      if (regex.test(expanded)) {
+        expanded = expanded.replace(regex, institution.fullName);
+        break;
+      }
+    }
+  }
+
+  const lowerExpanded = expanded.toLowerCase();
+  const boostTerms = [];
+
+  // Only add 'tender' if not already present
+  if (!lowerExpanded.includes('tender') && !lowerExpanded.includes('rfp') && !lowerExpanded.includes('nit') && !lowerExpanded.includes('quotation')) {
+    boostTerms.push('tender');
+  }
+
+  // Add current year for freshness unless a year is already specified
+  const currentYear = new Date().getFullYear().toString();
+  if (!lowerExpanded.includes(currentYear) && !lowerExpanded.match(/20\d{2}/)) {
+    boostTerms.push(currentYear);
+  }
+
+  // Add 'government procurement' only if no procurement-related words exist
+  if (!lowerExpanded.includes('procurement') && !lowerExpanded.includes('government') && !lowerExpanded.includes('eprocure')) {
+    boostTerms.push('government procurement');
+  }
+
+  return `${expanded} ${boostTerms.join(' ')}`.trim();
+}
+
+/**
+ * Score a result for relevance sorting — official portals rank higher, stale results rank lower.
+ */
+function scoreResult(item) {
+  let score = 0;
+  const domain = (item.domain || '').toLowerCase();
+  const snippet = (item.snippet || '').toLowerCase();
+  const title = (item.title || '').toLowerCase();
+  const currentYear = new Date().getFullYear().toString();
+  const prevYear = (new Date().getFullYear() - 1).toString();
+
+  // Boost official domains
+  if (domain.endsWith('.ac.in')) score += 30;
+  if (domain.endsWith('.gov.in') || domain.includes('gem.gov')) score += 25;
+  if (domain.endsWith('.nic.in')) score += 20;
+  if (domain.includes('eprocure')) score += 15;
+
+  // Boost current year mentions
+  if (snippet.includes(currentYear) || title.includes(currentYear)) score += 20;
+  if (snippet.includes(prevYear) || title.includes(prevYear)) score += 5;
+
+  // Penalize very old dates
+  for (let y = 2020; y <= new Date().getFullYear() - 2; y++) {
+    if ((snippet.includes(y.toString()) || title.includes(y.toString())) && !snippet.includes(currentYear)) {
+      score -= 15;
+    }
+  }
+
+  // Penalize PDF links from random institutions (often archived old tenders)
+  const url = item.url || '';
+  if (url.endsWith('.pdf') && !domain.endsWith('.ac.in') && !domain.endsWith('.gov.in')) {
+    score -= 10;
+  }
+
+  return score;
+}
+
+/**
+ * Execute a single TinyFish search request and return normalized results.
+ */
+async function executeSearch(searchQuery, purpose, searchLimit) {
+  const response = await axios.get(TINYFISH_SEARCH_URL, {
+    params: {
+      query: searchQuery,
+      purpose,
+    },
+    headers: {
+      'X-API-Key': config.tinyfish.apiKey,
+      'Content-Type': 'application/json',
+    },
+    timeout: 15000,
+  });
+
+  const rawResults = response.data?.results || [];
+  const results = [];
+
+  for (const item of rawResults) {
+    const itemUrl = item.url || item.link || '';
+    if (!itemUrl) continue;
+
+    const domain = item.site_name || item.domain || extractDomain(itemUrl);
+
+    // Filter out junk domains
+    if (JUNK_DOMAINS.has(domain.toLowerCase())) continue;
+
+    results.push({
+      title: item.title || item.name || 'Government Procurement Notice',
+      url: itemUrl,
+      snippet: item.snippet || item.description || '',
+      domain,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Search the live web using TinyFish Search API with intelligent query building.
+ * - Expands institution abbreviations (IIIT D → IIIT Delhi)
+ * - Injects current year for freshness
+ * - Filters junk domains
+ * - Runs parallel targeted site: search for detected institutions
+ * - Boosts official .ac.in / .gov.in results to top
+ *
  * @param {object} params
  * @param {string} params.query
  * @param {number} params.limit
  */
 export async function search({ query, limit = 5 }) {
-  const biasedQuery = `${query} tender RFP government procurement`;
+  const smartQuery = buildSmartQuery(query);
+  const institution = detectInstitution(query);
 
   return executeWithRetry(async () => {
-    const response = await axios.get(TINYFISH_SEARCH_URL, {
-      params: {
-        query: biasedQuery,
-        purpose: 'government tender and RFP procurement portal discovery',
-      },
-      headers: {
-        'X-API-Key': config.tinyfish.apiKey,
-        'Content-Type': 'application/json',
-      },
-      timeout: 15000,
-    });
+    // Run searches in parallel: main search + targeted site search if institution detected
+    const searches = [
+      executeSearch(smartQuery, 'Find active government tenders and procurement notices', limit * 2),
+    ];
 
-    const rawResults = response.data?.results || [];
-    const seenUrls = new Set();
-    const normalized = [];
-
-    for (const item of rawResults) {
-      const itemUrl = item.url || item.link || '';
-      if (!itemUrl || seenUrls.has(itemUrl)) continue;
-      seenUrls.add(itemUrl);
-
-      normalized.push({
-        title: item.title || item.name || 'Government Procurement Notice',
-        url: itemUrl,
-        snippet: item.snippet || item.description || '',
-        domain: item.site_name || item.domain || extractDomain(itemUrl),
-      });
-
-      if (normalized.length >= limit) break;
+    if (institution?.domain) {
+      const siteQuery = `site:${institution.domain} tender`;
+      searches.push(
+        executeSearch(siteQuery, `Find tenders on ${institution.fullName} official website`, 3)
+          .catch(() => []) // Don't fail if targeted search fails
+      );
     }
 
-    return normalized;
+    const [mainResults, siteResults = []] = await Promise.all(searches);
+
+    // Merge and deduplicate
+    const seenUrls = new Set();
+    const allResults = [];
+
+    // Site-specific results first (they're the most relevant)
+    for (const item of siteResults) {
+      if (!seenUrls.has(item.url)) {
+        seenUrls.add(item.url);
+        allResults.push(item);
+      }
+    }
+
+    for (const item of mainResults) {
+      if (!seenUrls.has(item.url)) {
+        seenUrls.add(item.url);
+        allResults.push(item);
+      }
+    }
+
+    // Sort by relevance score
+    allResults.sort((a, b) => scoreResult(b) - scoreResult(a));
+
+    return allResults.slice(0, limit);
   });
 }
 

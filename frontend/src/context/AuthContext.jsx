@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem('ss_auth_token') || null);
   const [loading, setLoading] = useState(true);
 
-  // Re-verify session on mount
+  // Re-verify session on mount (with timeout to avoid hanging on cold Render starts)
   useEffect(() => {
     async function checkSession() {
       if (!token) {
@@ -32,17 +32,40 @@ export function AuthProvider({ children }) {
       }
 
       try {
+        // 5-second timeout — Render free tier cold starts can take 15-30s
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
         const res = await fetch(apiUrl('/api/auth/me'), {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
+
         const data = await res.json();
         if (data.status === 'success' && data.user) {
           setUser(data.user);
         } else {
           logout();
         }
-      } catch {
-        // Keep cached session if offline
+      } catch (err) {
+        // On timeout or network error, try to decode the JWT locally as a fallback
+        // so the user isn't stuck on a loading screen waiting for Render to wake up
+        if (err.name === 'AbortError' || err.message?.includes('fetch')) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            // Only use if token hasn't expired
+            if (payload.exp && payload.exp * 1000 > Date.now()) {
+              setUser({ id: payload.id, email: payload.email, name: payload.name, role: payload.role });
+            } else {
+              logout();
+            }
+          } catch {
+            // Malformed token, force re-login
+            logout();
+          }
+        }
+        // else: keep cached session if offline
       } finally {
         setLoading(false);
       }
